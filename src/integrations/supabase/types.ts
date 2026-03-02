@@ -24,6 +24,7 @@ export type Database = {
           category: string | null
           created_at: string
           current_follow_up: string | null
+          dm_skip_count: number
           dmed_at: string | null
           engaged_at: string | null
           flywheel_reason: string | null
@@ -53,6 +54,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           current_follow_up?: string | null
+          dm_skip_count?: number
           dmed_at?: string | null
           engaged_at?: string | null
           flywheel_reason?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           category?: string | null
           created_at?: string
           current_follow_up?: string | null
+          dm_skip_count?: number
           dmed_at?: string | null
           engaged_at?: string | null
           flywheel_reason?: string | null

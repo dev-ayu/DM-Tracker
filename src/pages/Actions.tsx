@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Zap, X, ThumbsDown, Clock, ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { format, subDays, previousFriday } from "date-fns";
+import { format, subDays, addDays, previousFriday, nextMonday } from "date-fns";
 
 type Contact = {
   id: string;
@@ -13,6 +13,7 @@ type Contact = {
   username: string | null;
   profile_link: string;
   biography: string | null;
+  dm_skip_count?: number;
 };
 
 type QueueItem = {
@@ -50,6 +51,12 @@ const getPreviousWeekday = (d: Date): string => {
   return format(subDays(d, 1), "yyyy-MM-dd");
 };
 
+const getNextWeekday = (d: Date): string => {
+  const dow = dayOfWeek(d);
+  if (dow >= 5) return format(nextMonday(d), "yyyy-MM-dd"); // Fri/Sat/Sun → Monday
+  return format(addDays(d, 1), "yyyy-MM-dd");
+};
+
 const Actions = ({ userId }: { userId: string }) => {
   const [followQueue, setFollowQueue] = useState<QueueItem[]>([]);
   const [dmQueue, setDmQueue] = useState<QueueItem[]>([]);
@@ -84,7 +91,7 @@ const Actions = ({ userId }: { userId: string }) => {
         .eq("user_id", userId).eq("queue_date", today).eq("queue_type", "follow").order("created_at"),
       supabase
         .from("daily_queues")
-        .select("id, contact_id, completed, queue_type, contacts(id, full_name, username, profile_link, biography)")
+        .select("id, contact_id, completed, queue_type, contacts(id, full_name, username, profile_link, biography, dm_skip_count)")
         .eq("user_id", userId).eq("queue_date", today).eq("queue_type", "dm").order("created_at"),
       supabase.from("openers").select("contact_id, opener_text").eq("user_id", userId),
       supabase
@@ -97,7 +104,7 @@ const Actions = ({ userId }: { userId: string }) => {
         .order("last_follow_up_at"),
     ]);
 
-    const dmData = (dmRes.data as QueueItem[]) || [];
+    const dmData = ((dmRes.data || []) as unknown as QueueItem[]);
     setFollowQueue((followRes.data as any) || []);
     setDmQueue(dmData);
     const openerMap: Record<string, string> = {};
@@ -161,9 +168,11 @@ const Actions = ({ userId }: { userId: string }) => {
       return;
     }
 
-    const contactUpdate = queueType === "follow"
+    const contactUpdate: Record<string, any> = queueType === "follow"
       ? { status: !completed ? "followed" : "not_started", followed_at: !completed ? nowIso : null }
       : { status: !completed ? "dmed" : "followed", dmed_at: !completed ? nowIso : null };
+    // Reset skip count when DM is completed
+    if (queueType === "dm" && !completed) contactUpdate.dm_skip_count = 0;
     const { error: contactErr } = await supabase.from("contacts").update(contactUpdate).eq("id", contactId);
     if (contactErr) {
       toast.error(`Contact update failed: ${contactErr.message}`);
@@ -174,6 +183,19 @@ const Actions = ({ userId }: { userId: string }) => {
   const handleProfileClick = (item: QueueItem) => {
     if (!isWeekdayToday) return;
     if (!item.completed) toggleComplete(item.id, item.completed, item.queue_type, item.contact_id);
+  };
+
+  const skipDm = async (queueId: string, contactId: string, currentSkipCount: number) => {
+    if (!isWeekdayToday) return;
+    saveScroll();
+    // Optimistic removal
+    setDmQueue(prev => prev.filter(item => item.id !== queueId));
+    const nextDay = getNextWeekday(now);
+    // Delete today's queue entry and create one for the next weekday
+    await supabase.from("daily_queues").delete().eq("id", queueId);
+    await supabase.from("daily_queues").insert({ user_id: userId, contact_id: contactId, queue_date: nextDay, queue_type: "dm" as const });
+    await supabase.from("contacts").update({ dm_skip_count: currentSkipCount + 1 } as any).eq("id", contactId);
+    toast.success(`Skipped → ${nextDay}`);
   };
 
   const removeFromQueue = async (queueId: string, contactId: string, queueType: string) => {
@@ -509,13 +531,33 @@ const Actions = ({ userId }: { userId: string }) => {
                     className="h-5 w-5 shrink-0"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-medium ${item.completed ? "line-through" : ""}`}>
-                      {item.contacts?.full_name || "Unknown"}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className={`text-sm font-medium ${item.completed ? "line-through" : ""}`}>
+                        {item.contacts?.full_name || "Unknown"}
+                      </p>
+                      {(item.contacts?.dm_skip_count || 0) > 0 && (
+                        <span className={`text-[10px] rounded-md px-1.5 py-0.5 font-medium ${
+                          (item.contacts?.dm_skip_count || 0) >= 7
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-orange-500/15 text-orange-500"
+                        }`}>
+                          {(item.contacts?.dm_skip_count || 0) >= 7 ? "7+ skips" : `Skipped ${item.contacts?.dm_skip_count}×`}
+                        </span>
+                      )}
+                    </div>
                     {item.contacts?.username && (
                       <p className="text-xs text-muted-foreground">@{item.contacts.username}</p>
                     )}
                   </div>
+                  {!item.completed && (
+                    <button
+                      onClick={() => skipDm(item.id, item.contact_id, item.contacts?.dm_skip_count || 0)}
+                      className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-orange-500/15 hover:text-orange-500 transition-colors"
+                      title="Skip → Tomorrow (private/restricted)"
+                    >
+                      <Clock className="h-4 w-4" />
+                    </button>
+                  )}
                   <a
                     href={item.contacts?.profile_link}
                     target="_blank"
