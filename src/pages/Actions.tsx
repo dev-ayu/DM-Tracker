@@ -239,7 +239,32 @@ const Actions = ({ userId }: { userId: string }) => {
     fetchData();
   };
 
-  /** Delete a DM queue contact permanently — no replacement */
+  /** Delete a Fresh DM contact and backfill with a replacement */
+  const removeFromDmQueueWithBackfill = async (queueId: string, contactId: string, contactName: string) => {
+    if (!isWeekdayToday) return;
+    if (!window.confirm(`Remove "${contactName}" and replace?`)) return;
+    saveScroll();
+    setDmQueue(prev => prev.filter(item => item.id !== queueId));
+    await supabase.from("openers").delete().eq("contact_id", contactId);
+    await supabase.from("daily_queues").delete().eq("contact_id", contactId);
+    await supabase.from("contacts").delete().eq("id", contactId);
+    // Backfill: find a followed contact not already in today's DM queue
+    const { data: currentQueue } = await supabase
+      .from("daily_queues").select("contact_id").eq("user_id", userId).eq("queue_date", today).eq("queue_type", "dm");
+    const existingIds = new Set((currentQueue || []).map(q => q.contact_id));
+    existingIds.add(contactId);
+    const { data: candidates } = await supabase
+      .from("contacts").select("id").eq("user_id", userId).eq("status", "followed").eq("dm_skip_count", 0).limit(50);
+    const available = (candidates || []).filter(c => !existingIds.has(c.id));
+    if (available.length > 0) {
+      const newContactId = available[0].id;
+      await supabase.from("daily_queues").insert({ user_id: userId, contact_id: newContactId, queue_date: today, queue_type: "dm" as const });
+    }
+    toast.success("Removed & replaced");
+    fetchData();
+  };
+
+  /** Delete a Skipped/Private DM contact permanently — no replacement */
   const removeFromDmQueue = async (queueId: string, contactId: string, contactName: string) => {
     if (!isWeekdayToday) return;
     if (!window.confirm(`Delete "${contactName}" permanently?`)) return;
@@ -577,9 +602,9 @@ const Actions = ({ userId }: { userId: string }) => {
                       </div>
                       {!item.completed && (
                         <button
-                          onClick={() => removeFromDmQueue(item.id, item.contact_id, item.contacts?.full_name || "Unknown")}
+                          onClick={() => removeFromDmQueueWithBackfill(item.id, item.contact_id, item.contacts?.full_name || "Unknown")}
                           className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
-                          title="Delete contact"
+                          title="Remove & replace"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
