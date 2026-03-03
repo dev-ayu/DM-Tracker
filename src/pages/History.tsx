@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, setMonth } from "date-fns";
-import { BarChart3, ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 type Contact = {
@@ -93,41 +93,46 @@ const History = ({ userId }: { userId: string }) => {
     };
   }, [contacts, selectedMonth]);
 
+  const funnelColors = [
+    { bg: "bg-blue-500", text: "text-blue-500", light: "bg-blue-500/15" },
+    { bg: "bg-indigo-500", text: "text-indigo-500", light: "bg-indigo-500/15" },
+    { bg: "bg-purple-500", text: "text-purple-500", light: "bg-purple-500/15" },
+    { bg: "bg-violet-500", text: "text-violet-500", light: "bg-violet-500/15" },
+    { bg: "bg-orange-500", text: "text-orange-500", light: "bg-orange-500/15" },
+    { bg: "bg-amber-500", text: "text-amber-500", light: "bg-amber-500/15" },
+    { bg: "bg-emerald-500", text: "text-emerald-500", light: "bg-emerald-500/15" },
+  ];
+
+  const funnelMax = Math.max(...monthlyMetrics.funnel.map(s => s.count), 1);
+
   if (loading) return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
 
   return (
-    <div className="space-y-3 overflow-x-hidden">
-      {/* Header — title left, toggle + month selector right */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-primary shrink-0" />
-          <h1 className="text-lg font-semibold">Analytics</h1>
-        </div>
+    <div className="space-y-4 overflow-x-hidden max-w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold shrink-0">Analytics</h1>
         <div className="flex items-center gap-2">
           <div className="inline-flex items-center rounded-full border border-border p-0.5">
             <button
               onClick={() => setMetricView("overall")}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                metricView === "overall"
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground"
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                metricView === "overall" ? "bg-foreground text-background" : "text-muted-foreground"
               }`}
             >
               Overall
             </button>
             <button
               onClick={() => setMetricView("stage")}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                metricView === "stage"
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground"
+              className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                metricView === "stage" ? "bg-foreground text-background" : "text-muted-foreground"
               }`}
             >
               Stage
             </button>
           </div>
           <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(parseInt(v))}>
-            <SelectTrigger className="w-[120px] h-7 text-xs">
+            <SelectTrigger className="w-[100px] h-7 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -139,41 +144,49 @@ const History = ({ userId }: { userId: string }) => {
         </div>
       </div>
 
-      {/* Ultra-compact metrics grid — 3 cols mobile, 6 cols desktop */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-1">
-        {monthlyMetrics.cards.map(m => (
-          <div key={m.label} className="rounded-md border border-border bg-card px-1.5 py-1.5 text-center">
-            <p className={`text-[11px] font-bold leading-none ${m.accent}`}>{m.label}</p>
-            <p className="text-lg font-bold leading-tight mt-0.5">
-              {metricView === "overall" ? m.overall : m.stage}
-            </p>
-            <p className="text-[9px] text-muted-foreground/60 leading-none">
-              {metricView === "overall" ? m.overallLabel : m.stageLabel}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">{m.raw}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Compact funnel — single row of numbers with FW indicator */}
-      <div className="flex items-center justify-center gap-0.5 flex-wrap py-1">
-        {monthlyMetrics.funnel.map((step, i) => (
-          <div key={step.label} className="flex items-center gap-0.5">
-            <div className="text-center min-w-[24px]">
-              <p className="text-sm font-bold leading-none">{step.count}</p>
-              <p className="text-[8px] text-muted-foreground leading-tight">{step.label}</p>
+      {/* ─── Visual Funnel ─── */}
+      <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
+        {monthlyMetrics.funnel.map((step, i) => {
+          const color = funnelColors[i];
+          const widthPct = funnelMax > 0 ? Math.max((step.count / funnelMax) * 100, 8) : 8;
+          return (
+            <div key={step.label} className="flex items-center gap-2">
+              <span className={`text-[11px] font-semibold w-6 text-right ${color.text}`}>{step.label}</span>
+              <div className="flex-1 min-w-0">
+                <div
+                  className={`${color.bg} rounded-sm h-5 flex items-center justify-end pr-1.5 transition-all`}
+                  style={{ width: `${widthPct}%`, minWidth: "28px" }}
+                >
+                  <span className="text-[11px] font-bold text-white leading-none">{step.count}</span>
+                </div>
+              </div>
             </div>
-            {i < monthlyMetrics.funnel.length - 1 && (
-              <span className="text-[10px] text-muted-foreground/40">→</span>
-            )}
-          </div>
-        ))}
-        <div className="flex items-center gap-0.5 ml-1.5 pl-1.5 border-l border-border">
-          <div className="text-center min-w-[24px]">
-            <p className="text-sm font-bold leading-none text-destructive">{flywheelCount}</p>
-            <p className="text-[8px] text-muted-foreground leading-tight">FW</p>
+          );
+        })}
+        {/* Flywheel row */}
+        <div className="flex items-center gap-2 pt-1 mt-1 border-t border-border/50">
+          <span className="text-[11px] font-semibold w-6 text-right text-red-500">FW</span>
+          <div className="flex-1 min-w-0">
+            <div
+              className="bg-red-500 rounded-sm h-5 flex items-center justify-end pr-1.5 transition-all"
+              style={{ width: `${funnelMax > 0 ? Math.max((flywheelCount / funnelMax) * 100, 8) : 8}%`, minWidth: "28px" }}
+            >
+              <span className="text-[11px] font-bold text-white leading-none">{flywheelCount}</span>
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* ─── Conversion Rates ─── */}
+      <div className="grid grid-cols-3 gap-2">
+        {monthlyMetrics.cards.map(m => (
+          <div key={m.label} className="rounded-lg border border-border bg-card px-2 py-2 text-center">
+            <p className={`text-[10px] font-semibold uppercase tracking-wide ${m.accent}`}>{m.label}</p>
+            <p className="text-base font-bold leading-tight mt-0.5">
+              {metricView === "overall" ? m.overall : m.stage}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* ─── Flywheel Management ─── */}
