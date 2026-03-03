@@ -625,7 +625,7 @@ const Actions = ({ userId }: { userId: string }) => {
                       {!item.completed && (
                         <button
                           onClick={() => removeFromDmQueue(item.id, item.contact_id)}
-                          className="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
+                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
                           title="Remove & replace"
                         >
                           <X className="h-4 w-4" />
@@ -636,7 +636,7 @@ const Actions = ({ userId }: { userId: string }) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => handleProfileClick(item)}
-                        className="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                        className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                       >
                         <ExternalLink className="h-4 w-4" />
                       </a>
@@ -701,7 +701,7 @@ const Actions = ({ userId }: { userId: string }) => {
                       {!item.completed && (
                         <button
                           onClick={() => skipDm(item.id, item.contact_id, item.contacts?.dm_skip_count || 0)}
-                          className="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:bg-orange-500/15 hover:text-orange-500 transition-colors"
+                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-orange-500/15 hover:text-orange-500 transition-colors"
                           title="Skip → +2 days"
                         >
                           <Clock className="h-4 w-4" />
@@ -710,7 +710,7 @@ const Actions = ({ userId }: { userId: string }) => {
                       {!item.completed && (
                         <button
                           onClick={() => removeFromDmQueue(item.id, item.contact_id)}
-                          className="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
+                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
                           title="Remove & replace"
                         >
                           <X className="h-4 w-4" />
@@ -721,7 +721,7 @@ const Actions = ({ userId }: { userId: string }) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => handleProfileClick(item)}
-                        className="shrink-0 rounded-md p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                        className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                       >
                         <ExternalLink className="h-4 w-4" />
                       </a>
