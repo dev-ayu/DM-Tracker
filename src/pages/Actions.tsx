@@ -239,63 +239,16 @@ const Actions = ({ userId }: { userId: string }) => {
     fetchData();
   };
 
-  /** Delete a DM queue contact and backfill with a followed person + opener */
-  const removeFromDmQueue = async (queueId: string, contactId: string) => {
+  /** Delete a DM queue contact permanently — no replacement */
+  const removeFromDmQueue = async (queueId: string, contactId: string, contactName: string) => {
     if (!isWeekdayToday) return;
-    const confirmed = window.confirm("Remove this contact from the DM queue and delete them permanently? A replacement will be added.");
-    if (!confirmed) return;
+    if (!window.confirm(`Delete "${contactName}" permanently?`)) return;
     saveScroll();
-
-    // Optimistic removal
     setDmQueue(prev => prev.filter(item => item.id !== queueId));
-
-    // Delete contact data
     await supabase.from("openers").delete().eq("contact_id", contactId);
     await supabase.from("daily_queues").delete().eq("contact_id", contactId);
     await supabase.from("contacts").delete().eq("id", contactId);
-
-    // Find a replacement: a followed contact not already in today's DM queue
-    const { data: currentDmQueue } = await supabase
-      .from("daily_queues").select("contact_id").eq("user_id", userId).eq("queue_date", today).eq("queue_type", "dm");
-    const existingDmIds = new Set((currentDmQueue || []).map(q => q.contact_id));
-    existingDmIds.add(contactId);
-
-    // First try: followed contacts that already have an opener
-    const { data: withOpener } = await supabase
-      .from("contacts")
-      .select("id, openers!inner(opener_text)")
-      .eq("user_id", userId).eq("status", "followed")
-      .limit(50);
-    const openerMatch = (withOpener || []).filter((c: any) => !existingDmIds.has(c.id));
-
-    let replacementId: string | null = null;
-    if (openerMatch.length > 0) {
-      replacementId = openerMatch[0].id;
-    } else {
-      // Fallback: any followed contact
-      const { data: anyFollowed } = await supabase
-        .from("contacts").select("id").eq("user_id", userId).eq("status", "followed").limit(50);
-      const available = (anyFollowed || []).filter(c => !existingDmIds.has(c.id));
-      if (available.length > 0) {
-        replacementId = available[0].id;
-      }
-    }
-
-    if (replacementId) {
-      await supabase.from("daily_queues").insert({ user_id: userId, contact_id: replacementId, queue_date: today, queue_type: "dm" as const });
-      // Trigger opener generation for the replacement if needed
-      try {
-        await fetch("/api/generate-openers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId }),
-        });
-      } catch { /* best effort */ }
-      toast.success("Removed & replaced with new DM contact");
-    } else {
-      toast.success("Removed (no followed contacts available to backfill)");
-    }
-    fetchData();
+    toast.success("Contact deleted");
   };
 
   const autoQueue = async () => {
@@ -624,9 +577,9 @@ const Actions = ({ userId }: { userId: string }) => {
                       </div>
                       {!item.completed && (
                         <button
-                          onClick={() => removeFromDmQueue(item.id, item.contact_id)}
+                          onClick={() => removeFromDmQueue(item.id, item.contact_id, item.contacts?.full_name || "Unknown")}
                           className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
-                          title="Remove & replace"
+                          title="Delete contact"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -709,9 +662,9 @@ const Actions = ({ userId }: { userId: string }) => {
                       )}
                       {!item.completed && (
                         <button
-                          onClick={() => removeFromDmQueue(item.id, item.contact_id)}
+                          onClick={() => removeFromDmQueue(item.id, item.contact_id, item.contacts?.full_name || "Unknown")}
                           className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
-                          title="Remove & replace"
+                          title="Delete contact"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>

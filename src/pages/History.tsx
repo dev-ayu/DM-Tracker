@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, setMonth } from "date-fns";
-import { ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 type Contact = {
@@ -29,6 +29,7 @@ const History = ({ userId }: { userId: string }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [flywheelCount, setFlywheelCount] = useState(0);
   const [metricView, setMetricView] = useState<"overall" | "stage">("overall");
+  const [funnelOpen, setFunnelOpen] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -144,50 +145,60 @@ const History = ({ userId }: { userId: string }) => {
         </div>
       </div>
 
-      {/* ─── Visual Funnel ─── */}
-      <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
-        {monthlyMetrics.funnel.map((step, i) => {
-          const color = funnelColors[i];
-          const widthPct = funnelMax > 0 ? Math.max((step.count / funnelMax) * 100, 8) : 8;
-          return (
-            <div key={step.label} className="flex items-center gap-2">
-              <span className={`text-[11px] font-semibold w-6 text-right ${color.text}`}>{step.label}</span>
-              <div className="flex-1 min-w-0">
-                <div
-                  className={`${color.bg} rounded-sm h-5 flex items-center justify-end pr-1.5 transition-all`}
-                  style={{ width: `${widthPct}%`, minWidth: "28px" }}
-                >
-                  <span className="text-[11px] font-bold text-white leading-none">{step.count}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {/* Flywheel row */}
-        <div className="flex items-center gap-2 pt-1 mt-1 border-t border-border/50">
-          <span className="text-[11px] font-semibold w-6 text-right text-red-500">FW</span>
-          <div className="flex-1 min-w-0">
-            <div
-              className="bg-red-500 rounded-sm h-5 flex items-center justify-end pr-1.5 transition-all"
-              style={{ width: `${funnelMax > 0 ? Math.max((flywheelCount / funnelMax) * 100, 8) : 8}%`, minWidth: "28px" }}
-            >
-              <span className="text-[11px] font-bold text-white leading-none">{flywheelCount}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Conversion Rates ─── */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* ─── Conversion Rates (always visible) ─── */}
+      <div className="grid grid-cols-3 gap-1.5">
         {monthlyMetrics.cards.map(m => (
           <div key={m.label} className="rounded-lg border border-border bg-card px-2 py-2 text-center">
             <p className={`text-[10px] font-semibold uppercase tracking-wide ${m.accent}`}>{m.label}</p>
-            <p className="text-base font-bold leading-tight mt-0.5">
+            <p className="text-lg font-bold leading-tight mt-0.5">
               {metricView === "overall" ? m.overall : m.stage}
             </p>
           </div>
         ))}
       </div>
+
+      {/* ─── Funnel Shutter ─── */}
+      <button
+        onClick={() => setFunnelOpen(!funnelOpen)}
+        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${funnelOpen ? "rotate-180" : ""}`} />
+        Funnel
+      </button>
+
+      {funnelOpen && (
+        <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
+          {monthlyMetrics.funnel.map((step, i) => {
+            const color = funnelColors[i];
+            const widthPct = funnelMax > 0 ? Math.max((step.count / funnelMax) * 100, 8) : 8;
+            return (
+              <div key={step.label} className="flex items-center gap-2">
+                <span className={`text-[11px] font-semibold w-6 text-right ${color.text}`}>{step.label}</span>
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={`${color.bg} rounded-full h-5 flex items-center justify-end pr-1.5 transition-all`}
+                    style={{ width: `${widthPct}%`, minWidth: "28px" }}
+                  >
+                    <span className="text-[11px] font-bold text-white leading-none">{step.count}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {/* Flywheel row */}
+          <div className="flex items-center gap-2 pt-1 mt-1 border-t border-border/50">
+            <span className="text-[11px] font-semibold w-6 text-right text-red-500">FW</span>
+            <div className="flex-1 min-w-0">
+              <div
+                className="bg-red-500 rounded-full h-5 flex items-center justify-end pr-1.5 transition-all"
+                style={{ width: `${funnelMax > 0 ? Math.max((flywheelCount / funnelMax) * 100, 8) : 8}%`, minWidth: "28px" }}
+              >
+                <span className="text-[11px] font-bold text-white leading-none">{flywheelCount}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Flywheel Management ─── */}
       <FlywheelSection userId={userId} />
