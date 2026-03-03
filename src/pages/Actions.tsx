@@ -254,11 +254,19 @@ const Actions = ({ userId }: { userId: string }) => {
     const existingIds = new Set((currentQueue || []).map(q => q.contact_id));
     existingIds.add(contactId);
     const { data: candidates } = await supabase
-      .from("contacts").select("id").eq("user_id", userId).eq("status", "followed").eq("dm_skip_count", 0).limit(50);
+      .from("contacts").select("id").eq("user_id", userId).eq("status", "followed").or("dm_skip_count.eq.0,dm_skip_count.is.null").limit(50);
     const available = (candidates || []).filter(c => !existingIds.has(c.id));
     if (available.length > 0) {
       const newContactId = available[0].id;
       await supabase.from("daily_queues").insert({ user_id: userId, contact_id: newContactId, queue_date: today, queue_type: "dm" as const });
+      // Auto-generate opener for the replacement contact
+      try {
+        await fetch("/api/generate-openers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId }),
+        });
+      } catch (_) {}
     }
     toast.success("Removed & replaced");
     fetchData();
@@ -320,7 +328,9 @@ const Actions = ({ userId }: { userId: string }) => {
 
     const carryoverContactIds = (unsentDms || []).map(d => d.contact_id).filter(id => !existingDmIds.has(id));
     const newFollowContactIds = (yesterdayFollowed || []).map(f => f.contact_id).filter(id => !existingDmIds.has(id) && !carryoverContactIds.includes(id));
-    const allNewDmContactIds = [...carryoverContactIds, ...newFollowContactIds].slice(0, DM_LIMIT - freshDmCount);
+    // Fresh 30-cap is independent of carryovers — skipped DMs don't steal fresh slots
+    const freshNewFollows = newFollowContactIds.slice(0, DM_LIMIT - freshDmCount);
+    const allNewDmContactIds = [...carryoverContactIds, ...freshNewFollows];
 
     if (allNewDmContactIds.length > 0) {
       await supabase.from("daily_queues").insert(allNewDmContactIds.map(contactId => ({ user_id: userId, contact_id: contactId, queue_date: today, queue_type: "dm" as const })));
@@ -600,6 +610,15 @@ const Actions = ({ userId }: { userId: string }) => {
                           <p className="text-[11px] text-muted-foreground leading-tight">@{item.contacts.username}</p>
                         )}
                       </div>
+                      {!item.completed && (
+                        <button
+                          onClick={() => skipDm(item.id, item.contact_id, item.contacts?.dm_skip_count || 0)}
+                          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-orange-500/15 hover:text-orange-500 transition-colors"
+                          title="Skip → +2 days"
+                        >
+                          <Clock className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       {!item.completed && (
                         <button
                           onClick={() => removeFromDmQueueWithBackfill(item.id, item.contact_id, item.contacts?.full_name || "Unknown")}
