@@ -26,11 +26,11 @@ type PipelineContact = {
 };
 
 const STAGES = [
-  { key: "dmed", label: "DM'd", color: "text-primary", dotColor: "bg-primary" },
-  { key: "initiated", label: "Initiated", color: "text-orange-400", dotColor: "bg-orange-400" },
-  { key: "engaged", label: "Engaged", color: "text-yellow-400", dotColor: "bg-yellow-400" },
-  { key: "calendly_sent", label: "Calendly", color: "text-blue-400", dotColor: "bg-blue-400" },
-  { key: "booked", label: "Booked", color: "text-emerald-400", dotColor: "bg-emerald-400" },
+  { key: "dmed", label: "DM'd", color: "text-primary", dotColor: "bg-primary", tsField: "dmed_at" },
+  { key: "initiated", label: "Initiated", color: "text-orange-400", dotColor: "bg-orange-400", tsField: "initiated_at" },
+  { key: "engaged", label: "Engaged", color: "text-yellow-400", dotColor: "bg-yellow-400", tsField: "engaged_at" },
+  { key: "calendly_sent", label: "Calendly", color: "text-blue-400", dotColor: "bg-blue-400", tsField: "calendly_sent_at" },
+  { key: "booked", label: "Booked", color: "text-emerald-400", dotColor: "bg-emerald-400", tsField: "booked_at" },
 ];
 
 const Pipeline = ({ userId }: { userId: string }) => {
@@ -62,6 +62,28 @@ const Pipeline = ({ userId }: { userId: string }) => {
   const contactsByStage = (stage: string) => {
     const q = (stageSearch[stage] || "").toLowerCase().trim();
     return contacts.filter(c => c.status === stage && (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q)));
+  };
+
+  /* Ghost contacts: passed through this stage but are now in a later stage */
+  const stageTimestampField = (stageKey: string): keyof PipelineContact | null => {
+    const s = STAGES.find(s => s.key === stageKey);
+    return s ? s.tsField as keyof PipelineContact : null;
+  };
+
+  const ghostContactsForStage = (stageKey: string) => {
+    const tsField = stageTimestampField(stageKey);
+    if (!tsField) return [];
+    const q = (stageSearch[stageKey] || "").toLowerCase().trim();
+    return contacts.filter(c =>
+      c.status !== stageKey &&         // not currently in this stage
+      c[tsField] != null &&            // has passed through this stage
+      (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q))
+    );
+  };
+
+  const getStageLabelForStatus = (status: string) => {
+    const s = STAGES.find(s => s.key === status);
+    return s ? s.label : status;
   };
 
   /* Optimistic advance: remove card instantly, then sync */
@@ -217,14 +239,16 @@ const Pipeline = ({ userId }: { userId: string }) => {
           {STAGES.map(({ key, label, color, dotColor }) => {
             const allStage = contacts.filter(c => c.status === key);
             const stageContacts = contactsByStage(key);
+            const ghosts = ghostContactsForStage(key);
+            const allVisible = allStage.length + ghosts.length;
             return (
               <div key={key} className="flex flex-col min-h-0 w-[200px] md:w-auto shrink-0 md:shrink">
                 <div className="flex items-center gap-2 pb-2">
                   <span className={`h-2 w-2 rounded-full ${dotColor}`} />
                   <span className={`text-[11px] font-semibold uppercase tracking-wider ${color}`}>{label}</span>
-                  <span className="text-[10px] text-muted-foreground ml-auto">{stageContacts.length}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">{stageContacts.length}{ghosts.length > 0 ? <span className="text-muted-foreground/40"> +{ghosts.length}</span> : null}</span>
                 </div>
-                {allStage.length > 0 && (
+                {allVisible > 0 && (
                   <div className="relative mb-2">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground/50" />
                     <input
@@ -237,10 +261,11 @@ const Pipeline = ({ userId }: { userId: string }) => {
                   </div>
                 )}
               <div className="flex-1 overflow-y-auto space-y-1.5" style={{ scrollbarWidth: 'thin' }}>
-                {stageContacts.length === 0 ? (
+                {stageContacts.length === 0 && ghosts.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border/50 p-4 text-center text-[11px] text-muted-foreground/50">{allStage.length > 0 ? "No matches" : "Empty"}</div>
                 ) : (
-                  stageContacts.map((contact) => {
+                  <>
+                  {stageContacts.map((contact) => {
                     const days = getDaysSince(contact);
                     const next = getNextStage(contact);
                     const progress = getFollowUpProgress(contact);
@@ -314,7 +339,28 @@ const Pipeline = ({ userId }: { userId: string }) => {
                         )}
                       </div>
                     );
-                  })
+                  })}
+                  {/* Ghost cards — contacts that passed through this stage */}
+                  {ghosts.map((contact) => (
+                    <div
+                      key={`ghost-${contact.id}`}
+                      className="rounded-lg bg-card/40 border border-dashed border-border/30 px-2.5 py-2 cursor-pointer hover:border-border/50 transition-all opacity-40"
+                      onClick={() => openDrawer(contact)}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] font-medium truncate flex-1 leading-tight">{contact.full_name}</p>
+                        <span className={`text-[9px] rounded px-1 py-0.5 font-medium ${
+                          contact.status === "booked" ? "bg-emerald-500/15 text-emerald-500"
+                          : contact.status === "calendly_sent" ? "bg-blue-500/15 text-blue-500"
+                          : contact.status === "engaged" ? "bg-yellow-500/15 text-yellow-600"
+                          : contact.status === "initiated" ? "bg-orange-500/15 text-orange-500"
+                          : contact.status === "flywheel" ? "bg-destructive/15 text-destructive"
+                          : "bg-primary/15 text-primary"
+                        }`}>{getStageLabelForStatus(contact.status)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  </>
                 )}
               </div>
             </div>
