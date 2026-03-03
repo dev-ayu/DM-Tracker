@@ -588,7 +588,7 @@ const Actions = ({ userId }: { userId: string }) => {
 
       {/* DM Queue */}
       {activeTab === "dm" && (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {dmQueue.length === 0 && (
             <p className="py-8 text-center text-sm text-muted-foreground">No DMs queued. Yesterday's completed follows will appear here.</p>
           )}
@@ -596,39 +596,39 @@ const Actions = ({ userId }: { userId: string }) => {
           {/* Fresh DMs section */}
           {freshDms.length > 0 && (
             <>
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Fresh DMs ({freshDms.filter(i => i.completed).length}/{freshDms.length})
-              </h3>
+              </p>
               {freshDms.map((item) => {
                 const opener = openers[item.contact_id];
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-lg border border-border bg-card px-3 py-3 transition-all ${
+                    className={`rounded-lg border border-border bg-card px-3 py-2 transition-all ${
                       item.completed ? "opacity-50" : ""
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Checkbox
                         checked={item.completed}
                         onCheckedChange={() => toggleComplete(item.id, item.completed, "dm", item.contact_id)}
-                        className="h-5 w-5 shrink-0"
+                        className="h-4 w-4 shrink-0"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className={`text-sm font-medium ${item.completed ? "line-through" : ""}`}>
+                        <p className={`text-sm font-medium leading-tight ${item.completed ? "line-through" : ""}`}>
                           {item.contacts?.full_name || "Unknown"}
                         </p>
                         {item.contacts?.username && (
-                          <p className="text-xs text-muted-foreground">@{item.contacts.username}</p>
+                          <p className="text-[11px] text-muted-foreground leading-tight">@{item.contacts.username}</p>
                         )}
                       </div>
                       {!item.completed && (
                         <button
                           onClick={() => removeFromDmQueue(item.id, item.contact_id)}
-                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
+                          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
                           title="Remove & replace"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3.5 w-3.5" />
                         </button>
                       )}
                       <a
@@ -636,21 +636,21 @@ const Actions = ({ userId }: { userId: string }) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => handleProfileClick(item)}
-                        className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                        className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     </div>
                     {opener && !item.completed && (
-                      <div className="mt-2 ml-8 flex items-center gap-2">
-                        <p className="flex-1 min-w-0 rounded-md bg-secondary px-3 py-2 text-sm text-secondary-foreground break-words">
+                      <div className="mt-1 ml-6 flex items-center gap-1.5">
+                        <p className="flex-1 min-w-0 rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground break-words">
                           {opener}
                         </p>
                         <button
                           onClick={() => copyOpener(opener)}
-                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                         >
-                          <Copy className="h-4 w-4" />
+                          <Copy className="h-3 w-3" />
                         </button>
                       </div>
                     )}
@@ -663,57 +663,57 @@ const Actions = ({ userId }: { userId: string }) => {
           {/* Skipped / Private section */}
           {skippedDms.length > 0 && (
             <>
-              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-orange-500 mt-4 pt-3 border-t border-border">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-500 mt-3 pt-2 border-t border-border">
                 Skipped / Private ({skippedDms.length})
-              </h3>
+              </p>
               {skippedDms.map((item) => {
                 const opener = openers[item.contact_id];
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-lg border border-orange-500/20 bg-card px-3 py-3 transition-all ${
+                    className={`rounded-lg border border-orange-500/20 bg-card px-3 py-2 transition-all ${
                       item.completed ? "opacity-50" : ""
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <Checkbox
                         checked={item.completed}
                         onCheckedChange={() => toggleComplete(item.id, item.completed, "dm", item.contact_id)}
-                        className="h-5 w-5 shrink-0"
+                        className="h-4 w-4 shrink-0"
                       />
                       <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium leading-tight ${item.completed ? "line-through" : ""}`}>
+                          {item.contacts?.full_name || "Unknown"}
+                        </p>
                         <div className="flex items-center gap-1.5">
-                          <p className={`text-sm font-medium ${item.completed ? "line-through" : ""}`}>
-                            {item.contacts?.full_name || "Unknown"}
-                          </p>
-                          <span className={`text-[10px] rounded-md px-1.5 py-0.5 font-medium ${
+                          {item.contacts?.username && (
+                            <span className="text-[11px] text-muted-foreground leading-tight">@{item.contacts.username}</span>
+                          )}
+                          <span className={`text-[9px] rounded px-1 py-px font-medium ${
                             (item.contacts?.dm_skip_count || 0) >= 7
                               ? "bg-destructive/15 text-destructive"
                               : "bg-orange-500/15 text-orange-500"
                           }`}>
-                            {(item.contacts?.dm_skip_count || 0) >= 7 ? "7+ skips" : `Skipped ${item.contacts?.dm_skip_count}×`}
+                            {(item.contacts?.dm_skip_count || 0) >= 7 ? "7+" : `${item.contacts?.dm_skip_count}×`}
                           </span>
                         </div>
-                        {item.contacts?.username && (
-                          <p className="text-xs text-muted-foreground">@{item.contacts.username}</p>
-                        )}
                       </div>
                       {!item.completed && (
                         <button
                           onClick={() => skipDm(item.id, item.contact_id, item.contacts?.dm_skip_count || 0)}
-                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-orange-500/15 hover:text-orange-500 transition-colors"
+                          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-orange-500/15 hover:text-orange-500 transition-colors"
                           title="Skip → +2 days"
                         >
-                          <Clock className="h-4 w-4" />
+                          <Clock className="h-3.5 w-3.5" />
                         </button>
                       )}
                       {!item.completed && (
                         <button
                           onClick={() => removeFromDmQueue(item.id, item.contact_id)}
-                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
+                          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
                           title="Remove & replace"
                         >
-                          <X className="h-4 w-4" />
+                          <X className="h-3.5 w-3.5" />
                         </button>
                       )}
                       <a
@@ -721,21 +721,21 @@ const Actions = ({ userId }: { userId: string }) => {
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={() => handleProfileClick(item)}
-                        className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                        className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-3.5 w-3.5" />
                       </a>
                     </div>
                     {opener && !item.completed && (
-                      <div className="mt-2 ml-8 flex items-center gap-2">
-                        <p className="flex-1 min-w-0 rounded-md bg-secondary px-3 py-2 text-sm text-secondary-foreground break-words">
+                      <div className="mt-1 ml-6 flex items-center gap-1.5">
+                        <p className="flex-1 min-w-0 rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground break-words">
                           {opener}
                         </p>
                         <button
                           onClick={() => copyOpener(opener)}
-                          className="shrink-0 rounded-md p-2 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                         >
-                          <Copy className="h-4 w-4" />
+                          <Copy className="h-3 w-3" />
                         </button>
                       </div>
                     )}
