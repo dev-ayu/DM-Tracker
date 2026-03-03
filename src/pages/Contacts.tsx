@@ -73,9 +73,9 @@ const Contacts = ({ userId }: { userId: string }) => {
     ), [contacts, search]);
 
   return (
-    <div className="space-y-2 overflow-x-hidden max-w-full">
+    <div className="h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden scrollbar-hide pb-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold">Contacts</h1>
           <span className="text-[11px] text-muted-foreground">{filtered.length}/{contacts.length}</span>
@@ -84,7 +84,7 @@ const Contacts = ({ userId }: { userId: string }) => {
       </div>
 
       {/* Search */}
-      <div className="relative">
+      <div className="relative mb-2">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
         <Input
           placeholder="Search..."
@@ -94,7 +94,7 @@ const Contacts = ({ userId }: { userId: string }) => {
         />
       </div>
 
-      {/* Contact list — compact cards */}
+      {/* Contact list */}
       {loading ? (
         <p className="py-12 text-center text-muted-foreground text-xs">Loading...</p>
       ) : filtered.length === 0 ? (
@@ -107,28 +107,30 @@ const Contacts = ({ userId }: { userId: string }) => {
       ) : (
         <div className="space-y-1">
           {filtered.map(c => (
-            <div key={c.id} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium truncate">{c.full_name}</p>
-                  <span className={`text-[9px] font-semibold shrink-0 ${statusColors[c.status] || "text-muted-foreground"}`}>
-                    {statusLabel[c.status] || c.status}
-                  </span>
+            <div key={c.id} className="rounded-lg border border-border bg-card px-3 py-2">
+              <div className="flex items-center gap-2">
+                <div className="min-w-0 flex-1 w-0">
+                  <p className="text-sm font-medium leading-tight truncate">
+                    {c.full_name}
+                    <span className={`ml-1.5 text-[9px] font-semibold ${statusColors[c.status] || "text-muted-foreground"}`}>
+                      {statusLabel[c.status] || c.status}
+                    </span>
+                  </p>
+                  {c.username && <p className="text-[11px] text-muted-foreground leading-tight truncate">@{c.username}</p>}
                 </div>
-                {c.username && <p className="text-[11px] text-muted-foreground truncate">@{c.username}</p>}
+                <button
+                  onClick={() => deleteContact(c.id, c.full_name)}
+                  className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+                {c.profile_link && (
+                  <a href={c.profile_link} target="_blank" rel="noopener noreferrer"
+                    className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
               </div>
-              <button
-                onClick={() => deleteContact(c.id, c.full_name)}
-                className="shrink-0 rounded-md p-1.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-              {c.profile_link && (
-                <a href={c.profile_link} target="_blank" rel="noopener noreferrer"
-                  className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
             </div>
           ))}
         </div>
