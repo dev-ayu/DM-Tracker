@@ -794,7 +794,6 @@ const Actions = ({ userId }: { userId: string }) => {
                         href={item.contacts?.profile_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        onClick={() => handleProfileClick(item)}
                         className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />

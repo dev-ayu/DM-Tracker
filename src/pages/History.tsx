@@ -54,8 +54,8 @@ const History = ({ userId }: { userId: string }) => {
         if (!queueMap[q.contact_id]) queueMap[q.contact_id] = q.completed_at || q.queue_date;
       });
       for (const c of missingDmedAt as any[]) {
-        // Use queue completed_at, or initiated_at (they were DMed before initiated), or now
-        const recoveredDate = queueMap[c.id] || c.initiated_at || c.engaged_at || new Date().toISOString();
+        // Use queue completed_at, or initiated_at (they were DMed before initiated), or created_at
+        const recoveredDate = queueMap[c.id] || c.initiated_at || c.engaged_at || c.created_at;
         await supabase.from("contacts").update({ dmed_at: recoveredDate }).eq("id", c.id);
         c.dmed_at = recoveredDate; // fix local data too
       }
