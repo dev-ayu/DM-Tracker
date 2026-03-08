@@ -46,7 +46,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-[100dvh] bg-background">
       {/* ─── Mobile bottom nav (PWA / phone only) ─── */}
       <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/90 backdrop-blur-sm md:hidden safe-area-bottom">
         <nav className="flex items-center justify-around py-2">
@@ -152,7 +152,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <div className="flex h-6 w-6 items-center justify-center rounded bg-foreground text-background text-[11px] font-bold shrink-0">
                 R
               </div>
-              <span className="text-sm font-semibold text-foreground truncate">ReachMate</span>
+              <span className="text-sm font-semibold text-foreground truncate">DM Ritual</span>
             </div>
           )}
           <button
@@ -211,7 +211,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           collapsed ? "md:pl-[52px]" : "md:pl-[240px]"
         )}
       >
-        <div className="mx-auto max-w-[1400px] px-5 pt-7 pb-4 md:px-10 md:pt-6 md:pb-6 overflow-x-hidden">{children}</div>
+        <div className="mx-auto max-w-[1400px] px-5 pt-4 pb-4 md:px-10 md:pt-6 md:pb-6 overflow-x-hidden">{children}</div>
       </main>
 
       <PwaInstallPrompt />

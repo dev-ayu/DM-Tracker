@@ -238,13 +238,13 @@ const Dashboard = ({ userId }: { userId: string }) => {
   );
 
   return (
-    <div ref={containerRef} className="space-y-10 pull-to-refresh md:space-y-6">
+    <div ref={containerRef} className="space-y-8 pull-to-refresh md:space-y-6">
       <PullIndicator />
       {/* ── Header ── */}
-      <div className="space-y-6 md:space-y-4">
+      <div className="space-y-4 md:space-y-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight md:text-xl md:font-semibold">{getGreeting()}</h1>
-          <p className="text-sm text-muted-foreground mt-2 md:text-xs md:mt-0.5">{format(now, "EEEE, MMMM d")}</p>
+          <h1 className="text-2xl font-bold tracking-tight md:text-xl md:font-semibold">{getGreeting()}</h1>
+          <p className="text-sm text-muted-foreground mt-1 md:text-xs md:mt-0.5">{format(now, "EEEE, MMMM d")}</p>
         </div>
 
         {/* Stat row — compact, only metrics with values */}

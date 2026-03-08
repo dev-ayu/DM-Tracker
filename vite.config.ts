@@ -47,8 +47,8 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "ReachMate",
-        short_name: "ReachMate",
+        name: "DM Ritual",
+        short_name: "DM Ritual",
         description: "Daily Instagram outreach tracker",
         theme_color: "#0a0a0a",
         background_color: "#0a0a0a",

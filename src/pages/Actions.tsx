@@ -571,7 +571,7 @@ const Actions = ({ userId }: { userId: string }) => {
   return (
     <div
       ref={scrollRef}
-      className="h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden scrollbar-hide pb-4"
+      className="h-[calc(100dvh-5rem)] md:h-[calc(100dvh-2rem)] overflow-y-auto overflow-x-hidden scrollbar-hide pb-4"
       onScroll={saveScroll}
     >
       {/* Header */}
