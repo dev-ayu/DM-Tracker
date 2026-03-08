@@ -577,7 +577,7 @@ const Actions = ({ userId }: { userId: string }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 md:mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-red-500">Daily Actions</h1>
+          <h1 className="text-2xl font-bold">Daily Actions</h1>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
         </div>
         <div className="flex gap-2">
@@ -633,7 +633,7 @@ const Actions = ({ userId }: { userId: string }) => {
       {activeTab === "follow" && (
         <div className="space-y-3 md:space-y-2">
           {followQueue.length === 0 && (
-            <p className="py-12 text-center text-sm text-muted-foreground/60 md:py-8 md:text-muted-foreground">No follows queued. Hit "Load Queue" to start.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground/60">No follows queued. Hit "Load Queue" to start.</p>
           )}
           {sortedFollowQueue.map((item) => (
             <div
@@ -682,7 +682,7 @@ const Actions = ({ userId }: { userId: string }) => {
       {activeTab === "dm" && (
         <div className="space-y-3 md:space-y-1.5">
           {dmQueue.length === 0 && (
-            <p className="py-12 text-center text-sm text-muted-foreground/60 md:py-8 md:text-muted-foreground">No DMs queued. Yesterday's completed follows will appear here.</p>
+            <p className="py-4 text-center text-sm text-muted-foreground/60">No DMs queued. Yesterday's completed follows will appear here.</p>
           )}
 
           {/* Fresh DMs section */}

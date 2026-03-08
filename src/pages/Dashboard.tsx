@@ -390,8 +390,8 @@ const Dashboard = ({ userId }: { userId: string }) => {
 
       {/* All caught up */}
       {totalFollowUpsDue === 0 && (
-        <div className="py-16 text-center md:rounded-lg md:border md:border-dashed md:border-border md:py-12">
-          <p className="text-sm text-muted-foreground/60 md:text-muted-foreground">No follow-ups due right now — you're all caught up ✓</p>
+        <div className="text-center md:rounded-lg md:border md:border-dashed md:border-border md:py-12">
+          <p className="pt-4 text-sm text-muted-foreground/60">No follow-ups due right now — you're all caught up ✓</p>
         </div>
       )}
 
