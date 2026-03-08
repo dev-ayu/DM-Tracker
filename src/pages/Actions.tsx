@@ -575,26 +575,25 @@ const Actions = ({ userId }: { userId: string }) => {
       onScroll={saveScroll}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold">Daily Actions</h1>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
         </div>
         <div className="flex gap-2">
           {followQueue.length === 0 && (
-            <Button variant="outline" size="sm" onClick={autoQueue} disabled={autoQueueLoading}>
+            <Button variant="outline" size="sm" className="h-9 px-4" onClick={autoQueue} disabled={autoQueueLoading}>
               {autoQueueLoading ? "Loading..." : "Load Queue"}
             </Button>
           )}
-          <Button size="sm" onClick={generateOpeners} disabled={generating}>
-            <Zap className="mr-1 h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{generating ? "..." : "Openers"}</span>
+          <Button size="sm" className="h-9 px-4" onClick={generateOpeners} disabled={generating}>
+            <Zap className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Section header with toggle */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 md:text-sm md:tracking-wider md:text-muted-foreground">
           {activeTab === "follow"
             ? `Follow (${followCompleted}/${FOLLOW_LIMIT})`
