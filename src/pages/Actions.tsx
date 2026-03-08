@@ -577,24 +577,25 @@ const Actions = ({ userId }: { userId: string }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Daily Actions</h1>
+          <h1 className="text-xl font-bold md:text-2xl">Daily Actions</h1>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
         </div>
         <div className="flex gap-2">
           {followQueue.length === 0 && (
-            <Button variant="outline" size="sm" className="h-9 px-4" onClick={autoQueue} disabled={autoQueueLoading}>
+            <Button variant="outline" size="sm" onClick={autoQueue} disabled={autoQueueLoading}>
               {autoQueueLoading ? "Loading..." : "Load Queue"}
             </Button>
           )}
-          <Button size="sm" className="h-9 px-4" onClick={generateOpeners} disabled={generating}>
-            <Zap className="h-4 w-4" />
+          <Button size="sm" onClick={generateOpeners} disabled={generating}>
+            <Zap className="mr-1 h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{generating ? "..." : "Openers"}</span>
           </Button>
         </div>
       </div>
 
       {/* Section header with toggle */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 md:text-sm md:tracking-wider md:text-muted-foreground">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           {activeTab === "follow"
             ? `Follow (${followCompleted}/${FOLLOW_LIMIT})`
             : `DM (${dmCompleted}/${freshDms.length})${skippedDms.length > 0 ? ` · Skipped ${skippedDms.length}` : ""}`}
@@ -625,19 +626,19 @@ const Actions = ({ userId }: { userId: string }) => {
 
       <Progress
         value={activeTab === "follow" ? (followCompleted / FOLLOW_LIMIT) * 100 : (dmTotal ? (dmCompleted / dmTotal) * 100 : 0)}
-        className="h-1.5 mb-2"
+        className="h-2 mb-3"
       />
 
       {/* Follow Queue */}
       {activeTab === "follow" && (
-        <div className="space-y-3 md:space-y-2">
+        <div className="space-y-2">
           {followQueue.length === 0 && (
-            <p className="pt-3 text-center text-sm text-muted-foreground/60">No follows queued. Hit "Load Queue" to start.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No follows queued. Hit "Load Queue" to start.</p>
           )}
           {sortedFollowQueue.map((item) => (
             <div
               key={item.id}
-              className={`flex items-center gap-3 rounded-2xl bg-muted/50 px-4 py-4 transition-all md:rounded-lg md:border md:border-border md:bg-card md:px-3 md:py-3 ${
+              className={`flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-3 transition-all ${
                 item.completed ? "opacity-50" : ""
               }`}
             >
@@ -679,15 +680,15 @@ const Actions = ({ userId }: { userId: string }) => {
 
       {/* DM Queue */}
       {activeTab === "dm" && (
-        <div className="space-y-3 md:space-y-1.5">
+        <div className="space-y-1.5">
           {dmQueue.length === 0 && (
-            <p className="pt-3 text-center text-sm text-muted-foreground/60">No DMs queued. Yesterday's completed follows will appear here.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">No DMs queued. Yesterday's completed follows will appear here.</p>
           )}
 
           {/* Fresh DMs section */}
           {freshDms.length > 0 && (
             <>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50 md:text-muted-foreground">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Fresh DMs ({freshDms.filter(i => i.completed).length}/{freshDms.length})
               </p>
               {freshDms.map((item) => {
@@ -695,7 +696,7 @@ const Actions = ({ userId }: { userId: string }) => {
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-2xl bg-muted/50 px-4 py-3 transition-all md:rounded-lg md:border md:border-border md:bg-card md:px-3 md:py-2 ${
+                    className={`rounded-lg border border-border bg-card px-3 py-2 transition-all ${
                       item.completed ? "opacity-50" : ""
                     }`}
                   >
@@ -743,7 +744,7 @@ const Actions = ({ userId }: { userId: string }) => {
                     </div>
                     {opener && !item.completed && (
                       <div className="mt-1 ml-6 flex items-center gap-1.5">
-                        <p className="flex-1 min-w-0 rounded-xl bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground break-words md:rounded md:bg-secondary md:px-2 md:py-1 md:text-secondary-foreground">
+                        <p className="flex-1 min-w-0 rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground break-words">
                           {opener}
                         </p>
                         <button
@@ -763,7 +764,7 @@ const Actions = ({ userId }: { userId: string }) => {
           {/* Skipped / Private section */}
           {skippedDms.length > 0 && (
             <>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-orange-500/70 mt-3 pt-2 border-t border-border/50 md:text-orange-500 md:border-border">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-500 mt-3 pt-2 border-t border-border">
                 Skipped / Private ({skippedDms.length})
               </p>
               {skippedDms.map((item) => {
@@ -771,7 +772,7 @@ const Actions = ({ userId }: { userId: string }) => {
                 return (
                   <div
                     key={item.id}
-                    className={`rounded-2xl bg-orange-500/[0.08] px-4 py-3 transition-all md:rounded-lg md:border md:border-orange-500/20 md:bg-card md:px-3 md:py-2 ${
+                    className={`rounded-lg border border-orange-500/20 bg-card px-3 py-2 transition-all ${
                       item.completed ? "opacity-50" : ""
                     }`}
                   >
@@ -827,7 +828,7 @@ const Actions = ({ userId }: { userId: string }) => {
                     </div>
                     {opener && !item.completed && (
                       <div className="mt-1 ml-6 flex items-center gap-1.5">
-                        <p className="flex-1 min-w-0 rounded-xl bg-muted/60 px-3 py-1.5 text-xs text-muted-foreground break-words md:rounded md:bg-secondary md:px-2 md:py-1 md:text-secondary-foreground">
+                        <p className="flex-1 min-w-0 rounded bg-secondary px-2 py-1 text-xs text-secondary-foreground break-words">
                           {opener}
                         </p>
                         <button
@@ -848,10 +849,10 @@ const Actions = ({ userId }: { userId: string }) => {
 
       {/* Follow-ups Due Section */}
       {(followUpsA.length > 0 || followUpsB.length > 0 || followUpsC.length > 0) && (
-        <section className="mt-10 space-y-4 border-t border-border/50 pt-6 md:mt-6 md:space-y-3 md:pt-4">
+        <section className="mt-6 space-y-3 border-t border-border pt-4">
           <div className="flex items-center gap-2">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 md:text-sm md:tracking-wider md:text-muted-foreground">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
               Follow-ups Due ({followUps.length})
             </h2>
           </div>
@@ -868,7 +869,7 @@ const Actions = ({ userId }: { userId: string }) => {
                   <p className={`text-xs font-medium ${color}`}>{label} ({items.length})</p>
                 </div>
                 {items.map((contact) => (
-                  <div key={contact.id} className="rounded-2xl bg-muted/50 px-4 py-3.5 space-y-2 md:rounded-lg md:border md:border-border md:bg-card md:px-3 md:py-3">
+                  <div key={contact.id} className="rounded-lg border border-border bg-card px-3 py-3 space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
