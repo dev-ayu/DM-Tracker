@@ -577,7 +577,7 @@ const Actions = ({ userId }: { userId: string }) => {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 md:mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Daily Actions</h1>
+          <h1 className="text-2xl font-bold text-red-500">Daily Actions</h1>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
         </div>
         <div className="flex gap-2">
