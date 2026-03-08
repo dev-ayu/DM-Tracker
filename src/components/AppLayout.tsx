@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   LayoutDashboard, Users, BarChart3, LogOut, GitBranch, ListChecks,
-  ChevronsLeft, ChevronsRight, Settings, User,
+  ChevronsLeft, ChevronsRight, Settings, User, RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher, { applyTheme, getStoredTheme } from "./ThemeSwitcher";
@@ -30,8 +30,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const lastTapRef = useRef<number>(0);
-  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { applyTheme(getStoredTheme()); }, []);
 
@@ -41,27 +39,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     navigate("/auth");
   };
 
-  // Single tap → toggle profile menu
-  // Double tap → go to /auth (switch account / re-login)
-  const handleProfileTap = () => {
-    const now = Date.now();
-    const elapsed = now - lastTapRef.current;
-    lastTapRef.current = now;
-
-    if (elapsed < 320 && tapTimerRef.current) {
-      // Double tap
-      clearTimeout(tapTimerRef.current);
-      tapTimerRef.current = null;
-      setProfileMenuOpen(false);
-      handleLogout();
-    } else {
-      // First tap — wait to see if a second tap follows
-      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
-      tapTimerRef.current = setTimeout(() => {
-        tapTimerRef.current = null;
-        setProfileMenuOpen(prev => !prev);
-      }, 300);
-    }
+  const handleSwitchAccount = async () => {
+    setProfileMenuOpen(false);
+    await supabase.auth.signOut();
+    navigate("/auth");
   };
 
   return (
@@ -87,7 +68,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
           {/* Profile button */}
           <button
-            onClick={handleProfileTap}
+            onClick={() => setProfileMenuOpen(prev => !prev)}
             className={cn(
               "flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl transition-colors",
               profileMenuOpen ? "text-foreground" : "text-muted-foreground"
@@ -139,6 +120,13 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             </div>
             <div className="border-t border-border/50 py-1">
               <button
+                onClick={handleSwitchAccount}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted transition-colors"
+              >
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                Switch account
+              </button>
+              <button
                 onClick={handleLogout}
                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/5 transition-colors"
               >
@@ -146,7 +134,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 Log out
               </button>
             </div>
-            <p className="px-4 pb-3 pt-1 text-[10px] text-muted-foreground/50">Double-tap profile to switch account</p>
           </div>
         </>
       )}
