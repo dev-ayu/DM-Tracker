@@ -238,7 +238,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
   );
 
   return (
-    <div ref={containerRef} className="space-y-8 pull-to-refresh md:space-y-6">
+    <div ref={containerRef} className="space-y-5 pull-to-refresh md:space-y-6">
       <PullIndicator />
       {/* ── Header ── */}
       <div className="space-y-4 md:space-y-4">
