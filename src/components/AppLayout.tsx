@@ -211,7 +211,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           collapsed ? "md:pl-[52px]" : "md:pl-[240px]"
         )}
       >
-        <div className="mx-auto max-w-[1400px] px-5 pt-4 pb-4 md:px-10 md:pt-6 md:pb-6 overflow-x-hidden">{children}</div>
+        <div className="mx-auto max-w-[1400px] px-4 pt-3 pb-4 md:px-10 md:pt-6 md:pb-6 overflow-x-hidden">{children}</div>
       </main>
 
       <PwaInstallPrompt />

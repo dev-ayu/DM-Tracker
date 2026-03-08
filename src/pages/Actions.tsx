@@ -575,7 +575,7 @@ const Actions = ({ userId }: { userId: string }) => {
       onScroll={saveScroll}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-5 md:mb-5">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-2xl font-bold">Daily Actions</h1>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
@@ -594,7 +594,7 @@ const Actions = ({ userId }: { userId: string }) => {
       </div>
 
       {/* Section header with toggle */}
-      <div className="flex items-center justify-between mb-3 md:mb-2">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 md:text-sm md:tracking-wider md:text-muted-foreground">
           {activeTab === "follow"
             ? `Follow (${followCompleted}/${FOLLOW_LIMIT})`
@@ -626,14 +626,14 @@ const Actions = ({ userId }: { userId: string }) => {
 
       <Progress
         value={activeTab === "follow" ? (followCompleted / FOLLOW_LIMIT) * 100 : (dmTotal ? (dmCompleted / dmTotal) * 100 : 0)}
-        className="h-1.5 mb-3 md:h-2 md:mb-3"
+        className="h-1.5 mb-2"
       />
 
       {/* Follow Queue */}
       {activeTab === "follow" && (
         <div className="space-y-3 md:space-y-2">
           {followQueue.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground/60">No follows queued. Hit "Load Queue" to start.</p>
+            <p className="pt-3 text-center text-sm text-muted-foreground/60">No follows queued. Hit "Load Queue" to start.</p>
           )}
           {sortedFollowQueue.map((item) => (
             <div
@@ -682,7 +682,7 @@ const Actions = ({ userId }: { userId: string }) => {
       {activeTab === "dm" && (
         <div className="space-y-3 md:space-y-1.5">
           {dmQueue.length === 0 && (
-            <p className="py-4 text-center text-sm text-muted-foreground/60">No DMs queued. Yesterday's completed follows will appear here.</p>
+            <p className="pt-3 text-center text-sm text-muted-foreground/60">No DMs queued. Yesterday's completed follows will appear here.</p>
           )}
 
           {/* Fresh DMs section */}
