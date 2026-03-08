@@ -151,7 +151,7 @@ const History = ({ userId }: { userId: string }) => {
       {/* Header */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Analytics</h1>
+          <h1 className="text-2xl font-bold md:text-lg md:font-semibold">Analytics</h1>
           <NavLink
             to="/settings"
             className="md:hidden flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded-md hover:bg-muted"
@@ -207,9 +207,9 @@ const History = ({ userId }: { userId: string }) => {
       {/* ─── Conversion Rates (always visible) ─── */}
       <div className="grid grid-cols-3 gap-1.5">
         {monthlyMetrics.cards.map(m => (
-          <div key={m.label} className="rounded-lg border border-border bg-card px-2 py-2 text-center">
-            <p className={`text-[10px] font-semibold uppercase tracking-wide ${m.accent}`}>{m.label}</p>
-            <p className="text-lg font-bold leading-tight mt-0.5">
+          <div key={m.label} className="rounded-2xl bg-muted/50 border-0 px-2 py-3.5 text-center md:rounded-lg md:border md:border-border md:bg-card md:py-2">
+            <p className={`text-[10px] font-semibold uppercase tracking-widest ${m.accent}`}>{m.label}</p>
+            <p className="text-xl font-bold leading-tight mt-1 md:text-lg md:mt-0.5">
               {metricView === "overall" ? m.overall : m.stage}
             </p>
           </div>
@@ -219,14 +219,14 @@ const History = ({ userId }: { userId: string }) => {
       {/* ─── Funnel Shutter ─── */}
       <button
         onClick={() => setFunnelOpen(!funnelOpen)}
-        className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest hover:text-foreground transition-colors md:py-1.5 md:text-muted-foreground"
       >
         <ChevronDown className={`h-3.5 w-3.5 transition-transform ${funnelOpen ? "rotate-180" : ""}`} />
         Funnel
       </button>
 
       {funnelOpen && (
-        <div className="rounded-lg border border-border bg-card p-3 space-y-1.5">
+        <div className="rounded-2xl bg-muted/50 border-0 p-4 space-y-1.5 md:rounded-lg md:border md:border-border md:bg-card md:p-3">
           {monthlyMetrics.funnel.map((step, i) => {
             const color = funnelColors[i];
             const widthPct = funnelMax > 0 ? Math.max((step.count / funnelMax) * 100, 8) : 8;
@@ -350,7 +350,7 @@ const FlywheelSection = ({ userId }: { userId: string }) => {
       ? Math.max(0, Math.ceil((new Date(c.requeue_after + "T00:00:00Z").getTime() - (Date.now() + 5.5 * 60 * 60 * 1000)) / (1000 * 60 * 60 * 24)))
       : 0;
     return (
-      <div key={c.id} className="rounded-lg border border-border/40 bg-card p-3 space-y-2">
+      <div key={c.id} className="rounded-2xl bg-muted/50 p-4 space-y-2 md:rounded-lg md:border md:border-border/40 md:bg-card md:p-3">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium truncate">{c.full_name}</p>

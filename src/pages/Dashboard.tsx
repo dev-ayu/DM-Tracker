@@ -243,58 +243,58 @@ const Dashboard = ({ userId }: { userId: string }) => {
       {/* ── Header ── */}
       <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">{getGreeting()}</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{format(now, "EEEE, MMMM d")}</p>
+          <h1 className="text-2xl font-bold tracking-tight md:text-xl md:font-semibold">{getGreeting()}</h1>
+          <p className="text-sm text-muted-foreground mt-1 md:text-xs md:mt-0.5">{format(now, "EEEE, MMMM d")}</p>
         </div>
 
         {/* Stat row — compact, only metrics with values */}
         <div className="flex flex-wrap gap-1.5">
           {pipelineCounts.dmed > 0 && (
-            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{pipelineCounts.dmed}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">dm'd</span>
+            <button onClick={() => navigate("/pipeline")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{pipelineCounts.dmed}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">dm'd</span>
             </button>
           )}
           {pipelineCounts.initiated > 0 && (
-            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{pipelineCounts.initiated}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">replied</span>
+            <button onClick={() => navigate("/pipeline")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{pipelineCounts.initiated}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">replied</span>
             </button>
           )}
           {pipelineCounts.engaged > 0 && (
-            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{pipelineCounts.engaged}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">engaged</span>
+            <button onClick={() => navigate("/pipeline")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{pipelineCounts.engaged}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">engaged</span>
             </button>
           )}
           {pipelineCounts.calendly > 0 && (
-            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{pipelineCounts.calendly}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">calendly</span>
+            <button onClick={() => navigate("/pipeline")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{pipelineCounts.calendly}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">calendly</span>
             </button>
           )}
           {pipelineCounts.booked > 0 && (
-            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{pipelineCounts.booked}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">booked</span>
+            <button onClick={() => navigate("/pipeline")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{pipelineCounts.booked}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">booked</span>
             </button>
           )}
           {followCount.total > 0 && (
-            <button onClick={() => navigate("/actions")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{followCount.done}/{followCount.total}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">follows</span>
+            <button onClick={() => navigate("/actions")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{followCount.done}/{followCount.total}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">follows</span>
             </button>
           )}
           {dmCount.total > 0 && (
-            <button onClick={() => navigate("/actions")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{dmCount.done}/{dmCount.total}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">dms today</span>
+            <button onClick={() => navigate("/actions")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{dmCount.done}/{dmCount.total}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">dms today</span>
             </button>
           )}
           {totalFollowUpsDue > 0 && (
-            <button onClick={() => navigate("/actions")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
-              <span className="text-sm font-semibold">{totalFollowUpsDue}</span>
-              <span className="text-[10px] text-muted-foreground ml-1.5">due</span>
+            <button onClick={() => navigate("/actions")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
+              <span className="text-base font-bold md:text-sm md:font-semibold">{totalFollowUpsDue}</span>
+              <span className="text-xs text-muted-foreground ml-1.5">due</span>
             </button>
           )}
         </div>
@@ -327,7 +327,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
                   onDragOver={e => handleDragOver(e, col.key)}
                   onDrop={handleDrop}
                   onDragEnd={handleDragEnd}
-                  className="group/col rounded-lg border border-border bg-muted/20 flex flex-col transition-shadow hover:shadow-sm"
+                  className="group/col rounded-2xl bg-muted/30 flex flex-col transition-shadow md:rounded-lg md:border md:border-border md:bg-muted/20"
                 >
                   {/* Column header */}
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-border cursor-grab active:cursor-grabbing select-none">
@@ -342,7 +342,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
                   {/* Cards */}
                   <div className="flex-1 p-2 space-y-1.5 overflow-y-auto max-h-[calc(100vh-320px)] scrollbar-thin">
                     {items.map((contact) => (
-                      <div key={contact.id} className="rounded-lg border border-border bg-card p-3 notion-hover group/card transition-all">
+                      <div key={contact.id} className="rounded-2xl bg-muted/50 p-3 notion-hover group/card transition-all md:rounded-lg md:border md:border-border md:bg-card">
                         <div className="flex items-start gap-2.5">
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium leading-tight truncate">{contact.full_name}</p>
@@ -390,8 +390,8 @@ const Dashboard = ({ userId }: { userId: string }) => {
 
       {/* All caught up */}
       {totalFollowUpsDue === 0 && (
-        <div className="rounded-lg border border-dashed border-border py-12 text-center">
-          <p className="text-sm text-muted-foreground">No follow-ups due right now — you're all caught up ✓</p>
+        <div className="py-16 text-center md:rounded-lg md:border md:border-dashed md:border-border md:py-12">
+          <p className="text-sm text-muted-foreground/60 md:text-muted-foreground">No follow-ups due right now — you're all caught up ✓</p>
         </div>
       )}
 
