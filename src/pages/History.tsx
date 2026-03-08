@@ -142,14 +142,14 @@ const History = ({ userId }: { userId: string }) => {
   const years = [currentYear, currentYear - 1, currentYear - 2];
 
   return (
-    <div className="space-y-4 overflow-x-hidden max-w-full">
+    <div className="space-y-7 overflow-x-hidden max-w-full md:space-y-4">
       {contactLimitReached && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
           Showing first 3,000 contacts — some historical data may be excluded.
         </div>
       )}
       {/* Header */}
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-5 md:gap-2">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold md:text-lg md:font-semibold">Analytics</h1>
           <NavLink
@@ -205,7 +205,7 @@ const History = ({ userId }: { userId: string }) => {
       </div>
 
       {/* ─── Conversion Rates (always visible) ─── */}
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-3 gap-3 md:gap-1.5">
         {monthlyMetrics.cards.map(m => (
           <div key={m.label} className="rounded-2xl bg-muted/50 border-0 px-2 py-3.5 text-center md:rounded-lg md:border md:border-border md:bg-card md:py-2">
             <p className={`text-[10px] font-semibold uppercase tracking-widest ${m.accent}`}>{m.label}</p>
@@ -386,7 +386,7 @@ const FlywheelSection = ({ userId }: { userId: string }) => {
   };
 
   return (
-    <div className="space-y-4 border-t border-border pt-5">
+    <div className="space-y-5 border-t border-border/50 pt-7 md:space-y-4 md:pt-5">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           🔄 Flywheel {totalFlywheel > 0 ? `— ${totalFlywheel} contacts` : ""}

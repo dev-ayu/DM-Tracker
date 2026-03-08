@@ -575,7 +575,7 @@ const Actions = ({ userId }: { userId: string }) => {
       onScroll={saveScroll}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 md:mb-5">
+      <div className="flex items-center justify-between mb-9 md:mb-5">
         <div>
           <h1 className="text-2xl font-bold">Daily Actions</h1>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
@@ -594,7 +594,7 @@ const Actions = ({ userId }: { userId: string }) => {
       </div>
 
       {/* Section header with toggle */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-4 md:mb-2">
         <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 md:text-sm md:tracking-wider md:text-muted-foreground">
           {activeTab === "follow"
             ? `Follow (${followCompleted}/${FOLLOW_LIMIT})`
@@ -626,12 +626,12 @@ const Actions = ({ userId }: { userId: string }) => {
 
       <Progress
         value={activeTab === "follow" ? (followCompleted / FOLLOW_LIMIT) * 100 : (dmTotal ? (dmCompleted / dmTotal) * 100 : 0)}
-        className="h-1.5 mb-4 md:h-2 md:mb-3"
+        className="h-1.5 mb-6 md:h-2 md:mb-3"
       />
 
       {/* Follow Queue */}
       {activeTab === "follow" && (
-        <div className="space-y-2">
+        <div className="space-y-3 md:space-y-2">
           {followQueue.length === 0 && (
             <p className="py-12 text-center text-sm text-muted-foreground/60 md:py-8 md:text-muted-foreground">No follows queued. Hit "Load Queue" to start.</p>
           )}
@@ -680,7 +680,7 @@ const Actions = ({ userId }: { userId: string }) => {
 
       {/* DM Queue */}
       {activeTab === "dm" && (
-        <div className="space-y-1.5">
+        <div className="space-y-3 md:space-y-1.5">
           {dmQueue.length === 0 && (
             <p className="py-12 text-center text-sm text-muted-foreground/60 md:py-8 md:text-muted-foreground">No DMs queued. Yesterday's completed follows will appear here.</p>
           )}
@@ -849,7 +849,7 @@ const Actions = ({ userId }: { userId: string }) => {
 
       {/* Follow-ups Due Section */}
       {(followUpsA.length > 0 || followUpsB.length > 0 || followUpsC.length > 0) && (
-        <section className="mt-6 space-y-3 border-t border-border pt-4">
+        <section className="mt-10 space-y-4 border-t border-border/50 pt-6 md:mt-6 md:space-y-3 md:pt-4">
           <div className="flex items-center gap-2">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
             <h2 className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 md:text-sm md:tracking-wider md:text-muted-foreground">

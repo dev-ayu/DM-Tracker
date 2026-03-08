@@ -238,17 +238,17 @@ const Dashboard = ({ userId }: { userId: string }) => {
   );
 
   return (
-    <div ref={containerRef} className="space-y-6 pull-to-refresh -mt-2">
+    <div ref={containerRef} className="space-y-10 pull-to-refresh md:space-y-6">
       <PullIndicator />
       {/* ── Header ── */}
-      <div className="space-y-4">
+      <div className="space-y-6 md:space-y-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-xl md:font-semibold">{getGreeting()}</h1>
-          <p className="text-sm text-muted-foreground mt-1 md:text-xs md:mt-0.5">{format(now, "EEEE, MMMM d")}</p>
+          <h1 className="text-3xl font-bold tracking-tight md:text-xl md:font-semibold">{getGreeting()}</h1>
+          <p className="text-sm text-muted-foreground mt-2 md:text-xs md:mt-0.5">{format(now, "EEEE, MMMM d")}</p>
         </div>
 
         {/* Stat row — compact, only metrics with values */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2.5 md:gap-1.5">
           {pipelineCounts.dmed > 0 && (
             <button onClick={() => navigate("/pipeline")} className="rounded-2xl bg-muted/50 hover:bg-muted/70 px-4 py-2.5 text-left transition-colors md:rounded-md md:border md:border-border md:bg-card md:px-3 md:py-1.5 md:hover:bg-accent/40">
               <span className="text-base font-bold md:text-sm md:font-semibold">{pipelineCounts.dmed}</span>
@@ -307,7 +307,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
          ════════════════════════════════════════════════════════ */}
       {totalFollowUpsDue > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-5 md:mb-3">
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Follow-ups — {totalFollowUpsDue} due
             </h2>
@@ -316,7 +316,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
             )}
           </div>
 
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 md:gap-3">
             {visibleColumns.map((col) => {
               const items = followUpsByLetter[col.key] || [];
               return (
