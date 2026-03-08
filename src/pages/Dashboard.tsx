@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useSettings } from "@/contexts/SettingsContext";
 import { supabase } from "@/integrations/supabase/client";
-import { RefreshCw, Users, MessageSquare, Clock, ChevronRight, ThumbsDown, ExternalLink, GripVertical } from "lucide-react";
+import { RefreshCw, ChevronRight, ThumbsDown, ExternalLink, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { todayIST, futureDateIST } from "@/lib/time";
 import { useNavigate } from "react-router-dom";
 import { usePullRefresh } from "@/hooks/use-pull-refresh";
 
@@ -35,8 +37,17 @@ const COLUMN_ORDER_KEY = "dashboard-followup-col-order";
 
 const Dashboard = ({ userId }: { userId: string }) => {
   const navigate = useNavigate();
+  const { settings } = useSettings();
   const now = new Date();
-  const today = format(now, "yyyy-MM-dd");
+  const today = todayIST();
+
+  // Fix #18: time-of-day greeting
+  const getGreeting = () => {
+    const h = now.getHours();
+    if (h < 12) return "Good morning";
+    if (h < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   const [followCount, setFollowCount] = useState({ done: 0, total: 0 });
   const [dmCount, setDmCount] = useState({ done: 0, total: 0 });
@@ -64,7 +75,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
   /* ─── Data fetch ─── */
   const fetchData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const twentyFourHoursAgo = new Date(Date.now() - settings.followup_delay_hours * 60 * 60 * 1000).toISOString();
 
     const [followRes, dmRes, followUpsRes, pipelineRes] = await Promise.all([
       supabase.from("daily_queues").select("id, completed").eq("user_id", userId).eq("queue_date", today).eq("queue_type", "follow"),
@@ -72,7 +83,7 @@ const Dashboard = ({ userId }: { userId: string }) => {
       supabase.from("contacts").select("id, full_name, username, profile_link, current_follow_up, last_follow_up_at, status")
         .eq("user_id", userId).not("current_follow_up", "is", null).lte("last_follow_up_at", twentyFourHoursAgo)
         .in("status", ["initiated", "engaged", "calendly_sent"]).order("last_follow_up_at"),
-      supabase.from("contacts").select("id, status").eq("user_id", userId).in("status", ["dmed", "initiated", "engaged", "calendly_sent", "booked"]),
+      supabase.from("contacts").select("id, dmed_at, initiated_at, engaged_at, calendly_sent_at, booked_at").eq("user_id", userId).not("dmed_at", "is", null),
     ]);
 
     const follows = followRes.data || [];
@@ -82,11 +93,11 @@ const Dashboard = ({ userId }: { userId: string }) => {
     setFollowUps((followUpsRes.data as FollowUpContact[]) || []);
     const pipeline = pipelineRes.data || [];
     setPipelineCounts({
-      dmed: pipeline.filter(p => p.status === "dmed").length,
-      initiated: pipeline.filter(p => p.status === "initiated").length,
-      engaged: pipeline.filter(p => p.status === "engaged").length,
-      calendly: pipeline.filter(p => p.status === "calendly_sent").length,
-      booked: pipeline.filter(p => p.status === "booked").length,
+      dmed:      pipeline.filter(p => p.dmed_at != null).length,
+      initiated: pipeline.filter(p => p.initiated_at != null).length,
+      engaged:   pipeline.filter(p => p.engaged_at != null).length,
+      calendly:  pipeline.filter(p => p.calendly_sent_at != null).length,
+      booked:    pipeline.filter(p => p.booked_at != null).length,
     });
     setLoading(false);
   }, [userId, today]);
@@ -103,25 +114,32 @@ const Dashboard = ({ userId }: { userId: string }) => {
     const fu = contact.current_follow_up;
     const letter = fu.slice(-1);
     const num = parseInt(fu.slice(0, -1));
-    const maxA = 1, maxB = 8, maxC = 8;
+    const maxA = settings.max_followups_a;
+    const maxB = settings.max_followups_b;
+    const maxC = settings.max_followups_c;
 
-    // Optimistic: remove from board right away (it either advances or goes to flywheel)
     removeContactOptimistic(contact.id);
-    toast.success(`Follow-up ${fu} sent`);
 
     const nowIso = new Date().toISOString();
+    let updateError: any = null;
     if ((letter === "A" && num >= maxA) || (letter === "B" && num >= maxB) || (letter === "C" && num >= maxC)) {
       const reason = letter === "A" ? "no_reply_1a" : letter === "B" ? "no_reply_8b" : "no_reply_8c";
-      const requeue = new Date(); requeue.setDate(requeue.getDate() + 90);
-      await supabase.from("contacts").update({
+      const { error } = await supabase.from("contacts").update({
         status: "flywheel", flywheel_reason: reason, negative_reply: false,
-        requeue_after: format(requeue, "yyyy-MM-dd"), current_follow_up: null, last_follow_up_at: null,
+        requeue_after: futureDateIST(settings.flywheel_days), current_follow_up: null, last_follow_up_at: null,
       }).eq("id", contact.id);
+      updateError = error;
     } else {
       const nextFu = `${num + 1}${letter}`;
-      await supabase.from("contacts").update({ current_follow_up: nextFu, last_follow_up_at: nowIso }).eq("id", contact.id);
+      const { error } = await supabase.from("contacts").update({ current_follow_up: nextFu, last_follow_up_at: nowIso }).eq("id", contact.id);
+      updateError = error;
     }
-    // Silent background refresh to sync counts
+    if (updateError) {
+      toast.error(`Update failed: ${updateError.message}`);
+      setFollowUps(prev => [...prev, contact]);
+      return;
+    }
+    toast.success(`Follow-up ${fu} sent`);
     fetchData(true);
   };
 
@@ -130,28 +148,40 @@ const Dashboard = ({ userId }: { userId: string }) => {
     removeContactOptimistic(contact.id);
 
     const nowIso = new Date().toISOString();
+    let updateObj: Record<string, any>;
+    let successMsg: string;
     if (letter === "A") {
-      toast.success("Moved to Engaged → VSL sent");
-      await supabase.from("contacts").update({ status: "engaged", engaged_at: nowIso, current_follow_up: "1B", last_follow_up_at: nowIso }).eq("id", contact.id);
+      updateObj = { status: "engaged", engaged_at: nowIso, current_follow_up: "1B", last_follow_up_at: nowIso };
+      successMsg = "Moved to Engaged → VSL sent";
     } else if (letter === "B") {
-      toast.success("Moved to Calendly → Link sent");
-      await supabase.from("contacts").update({ status: "calendly_sent", calendly_sent_at: nowIso, current_follow_up: "1C", last_follow_up_at: nowIso }).eq("id", contact.id);
-    } else if (letter === "C") {
-      toast.success("Booked! 🎉");
-      await supabase.from("contacts").update({ status: "booked", booked_at: nowIso, current_follow_up: null, last_follow_up_at: null }).eq("id", contact.id);
+      updateObj = { status: "calendly_sent", calendly_sent_at: nowIso, current_follow_up: "1C", last_follow_up_at: nowIso };
+      successMsg = "Moved to Calendly → Link sent";
+    } else {
+      updateObj = { status: "booked", booked_at: nowIso, current_follow_up: null, last_follow_up_at: null };
+      successMsg = "Booked!";
     }
+    const { error } = await supabase.from("contacts").update(updateObj).eq("id", contact.id);
+    if (error) {
+      toast.error(`Update failed: ${error.message}`);
+      setFollowUps(prev => [...prev, contact]);
+      return;
+    }
+    toast.success(successMsg);
     fetchData(true);
   };
 
   const sendToFlywheel = async (contactId: string, reason: string) => {
     removeContactOptimistic(contactId);
-    toast.success("Sent to flywheel (90 days)");
 
-    const requeue = new Date(); requeue.setDate(requeue.getDate() + 90);
-    await supabase.from("contacts").update({
+    const { error } = await supabase.from("contacts").update({
       status: "flywheel", flywheel_reason: reason, negative_reply: reason === "negative",
-      requeue_after: format(requeue, "yyyy-MM-dd"), current_follow_up: null, last_follow_up_at: null,
+      requeue_after: futureDateIST(settings.flywheel_days), current_follow_up: null, last_follow_up_at: null,
     }).eq("id", contactId);
+    if (error) {
+      toast.error(`Flywheel update failed: ${error.message}`);
+      return;
+    }
+    toast.success(`Sent to flywheel (${settings.flywheel_days} days)`);
     fetchData(true);
   };
 
@@ -179,20 +209,12 @@ const Dashboard = ({ userId }: { userId: string }) => {
     C: followUps.filter(f => f.current_follow_up?.endsWith("C")),
   };
   const totalFollowUpsDue = followUps.length;
-  const totalPipeline = pipelineCounts.dmed + pipelineCounts.initiated + pipelineCounts.engaged + pipelineCounts.calendly + pipelineCounts.booked;
 
   // Only show columns that have contacts — empty ones are hidden, remaining ones expand
   const visibleColumns = columnOrder
     .map(key => ALL_COLUMNS.find(c => c.key === key)!)
     .filter(col => (followUpsByLetter[col.key] || []).length > 0);
 
-  const pipelineStages = [
-    { label: "DM'd", count: pipelineCounts.dmed, color: "bg-blue-100 text-blue-700", bar: "bg-blue-500" },
-    { label: "Initiated", count: pipelineCounts.initiated, color: "bg-orange-100 text-orange-700", bar: "bg-orange-500" },
-    { label: "Engaged", count: pipelineCounts.engaged, color: "bg-amber-100 text-amber-700", bar: "bg-amber-500" },
-    { label: "Calendly", count: pipelineCounts.calendly, color: "bg-purple-100 text-purple-700", bar: "bg-purple-500" },
-    { label: "Booked", count: pipelineCounts.booked, color: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" },
-  ];
 
   if (loading) {
     return (
@@ -219,63 +241,65 @@ const Dashboard = ({ userId }: { userId: string }) => {
     <div ref={containerRef} className="space-y-6 pull-to-refresh -mt-2">
       <PullIndicator />
       {/* ── Header ── */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="text-2xl leading-none">☀️</span>
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold tracking-tight text-foreground leading-none">
-              Good morning
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {format(now, "EEEE, MMMM d")}
-            </p>
-          </div>
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{getGreeting()}</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">{format(now, "EEEE, MMMM d")}</p>
         </div>
 
-        {/* Stat pills — horizontal scroll on mobile */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1 -mx-1 px-1">
-          <button onClick={() => navigate("/actions")} className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium notion-hover transition-all whitespace-nowrap shrink-0">
-            <Users className="h-3 w-3 text-blue-500" strokeWidth={2} />
-            <span className="text-foreground">{followCount.done}</span>
-            <span className="text-muted-foreground">/ {followCount.total || 30}</span>
-          </button>
-          <button onClick={() => navigate("/actions")} className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium notion-hover transition-all whitespace-nowrap shrink-0">
-            <MessageSquare className="h-3 w-3 text-purple-500" strokeWidth={2} />
-            <span className="text-foreground">{dmCount.done}</span>
-            <span className="text-muted-foreground">/ {dmCount.total} DMs</span>
-          </button>
-          {totalFollowUpsDue > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium whitespace-nowrap shrink-0">
-              <Clock className="h-3 w-3 text-amber-600" strokeWidth={2} />
-              <span className="text-amber-700">{totalFollowUpsDue} due</span>
-            </span>
+        {/* Stat row — compact, only metrics with values */}
+        <div className="flex flex-wrap gap-1.5">
+          {pipelineCounts.dmed > 0 && (
+            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{pipelineCounts.dmed}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">dm'd</span>
+            </button>
           )}
-          <button onClick={() => navigate("/pipeline")} className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium notion-hover transition-all whitespace-nowrap shrink-0">
-            <span className="text-foreground">{totalPipeline}</span>
-            <span className="text-muted-foreground">pipeline</span>
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-          </button>
+          {pipelineCounts.initiated > 0 && (
+            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{pipelineCounts.initiated}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">replied</span>
+            </button>
+          )}
+          {pipelineCounts.engaged > 0 && (
+            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{pipelineCounts.engaged}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">engaged</span>
+            </button>
+          )}
+          {pipelineCounts.calendly > 0 && (
+            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{pipelineCounts.calendly}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">calendly</span>
+            </button>
+          )}
+          {pipelineCounts.booked > 0 && (
+            <button onClick={() => navigate("/pipeline")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{pipelineCounts.booked}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">booked</span>
+            </button>
+          )}
+          {followCount.total > 0 && (
+            <button onClick={() => navigate("/actions")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{followCount.done}/{followCount.total}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">follows</span>
+            </button>
+          )}
+          {dmCount.total > 0 && (
+            <button onClick={() => navigate("/actions")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{dmCount.done}/{dmCount.total}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">dms today</span>
+            </button>
+          )}
+          {totalFollowUpsDue > 0 && (
+            <button onClick={() => navigate("/actions")} className="rounded-md border border-border bg-card px-3 py-1.5 text-left hover:bg-accent/40 transition-colors">
+              <span className="text-sm font-semibold">{totalFollowUpsDue}</span>
+              <span className="text-[10px] text-muted-foreground ml-1.5">due</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Pipeline bar — scrollable on mobile ── */}
-      <div className="rounded-lg border border-border overflow-hidden">
-        <div className="flex divide-x divide-border bg-muted/30 overflow-x-auto scrollbar-hide">
-          {pipelineStages.map((stage) => (
-            <div key={stage.label} className="flex-1 min-w-[64px] px-2 py-2.5 text-center">
-              <span className={`inline-flex items-center rounded px-1 py-0.5 text-[9px] sm:text-[10px] font-medium ${stage.color}`}>{stage.label}</span>
-              <p className="mt-1 text-lg sm:text-xl font-bold tracking-tight">{stage.count}</p>
-            </div>
-          ))}
-        </div>
-        <div className="flex h-1.5">
-          {pipelineStages.map((stage) => {
-            const maxCount = Math.max(...pipelineStages.map(s => s.count), 1);
-            const opacity = stage.count > 0 ? Math.max(0.2, stage.count / maxCount) : 0.05;
-            return <div key={stage.label} className={`flex-1 ${stage.bar}`} style={{ opacity }} />;
-          })}
-        </div>
-      </div>
 
       {/* ════════════════════════════════════════════════════════
           FOLLOW-UPS BOARD — takes up the full remaining space

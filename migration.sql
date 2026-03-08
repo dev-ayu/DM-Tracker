@@ -16,6 +16,7 @@ CREATE TABLE public.contacts (
   profile_link  TEXT NOT NULL,
   followers     INTEGER DEFAULT 0,
   biography     TEXT DEFAULT '',
+  dm_skip_count INTEGER NOT NULL DEFAULT 0,
   category      TEXT DEFAULT '',
   status        TEXT NOT NULL DEFAULT 'not_started'
                 CHECK (status = ANY (ARRAY[
@@ -117,6 +118,37 @@ CREATE POLICY "Users can view own follow_up_notes"   ON public.follow_up_notes F
 CREATE POLICY "Users can insert own follow_up_notes" ON public.follow_up_notes FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own follow_up_notes" ON public.follow_up_notes FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own follow_up_notes" ON public.follow_up_notes FOR DELETE USING (auth.uid() = user_id);
+
+-- ══════════════════════════════════════════════════════════════════
+--  Fix #2: idempotent ALTER for existing databases
+-- ══════════════════════════════════════════════════════════════════
+ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS dm_skip_count INTEGER NOT NULL DEFAULT 0;
+
+-- ══════════════════════════════════════════════════════════════════
+--  user_settings — one row per user (upsert on save)
+-- ══════════════════════════════════════════════════════════════════
+CREATE TABLE IF NOT EXISTS public.user_settings (
+  user_id               UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  follow_limit          INTEGER NOT NULL DEFAULT 30  CHECK (follow_limit  BETWEEN 1 AND 100),
+  dm_limit              INTEGER NOT NULL DEFAULT 30  CHECK (dm_limit      BETWEEN 1 AND 100),
+  followup_delay_hours  INTEGER NOT NULL DEFAULT 24  CHECK (followup_delay_hours BETWEEN 1 AND 168),
+  flywheel_days         INTEGER NOT NULL DEFAULT 90  CHECK (flywheel_days BETWEEN 7 AND 365),
+  skip_days             INTEGER NOT NULL DEFAULT 2   CHECK (skip_days     BETWEEN 1 AND 14),
+  max_followups_a       INTEGER NOT NULL DEFAULT 1   CHECK (max_followups_a BETWEEN 1 AND 10),
+  max_followups_b       INTEGER NOT NULL DEFAULT 8   CHECK (max_followups_b BETWEEN 1 AND 20),
+  max_followups_c       INTEGER NOT NULL DEFAULT 8   CHECK (max_followups_c BETWEEN 1 AND 20),
+  opener_option_a       TEXT    NOT NULL DEFAULT 'Are you taking on more clients atm?'
+                                CHECK (char_length(opener_option_a) BETWEEN 5 AND 200),
+  groq_api_key          TEXT    DEFAULT NULL,
+  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own settings"   ON public.user_settings FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own settings" ON public.user_settings FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own settings" ON public.user_settings FOR UPDATE USING (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_user_settings_user ON public.user_settings(user_id);
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS custom_prompt TEXT DEFAULT NULL;
 
 -- ══════════════════════════════════════════════════════════════════
 --  Done! Now enable Email auth in Authentication → Providers

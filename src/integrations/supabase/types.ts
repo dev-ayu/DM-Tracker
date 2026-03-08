@@ -218,6 +218,57 @@ export type Database = {
           },
         ]
       }
+      user_settings: {
+        Row: {
+          user_id: string
+          follow_limit: number
+          dm_limit: number
+          followup_delay_hours: number
+          flywheel_days: number
+          skip_days: number
+          max_followups_a: number
+          max_followups_b: number
+          max_followups_c: number
+          opener_option_a: string
+          groq_api_key: string | null
+          custom_prompt: string | null
+          working_days: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          follow_limit?: number
+          dm_limit?: number
+          followup_delay_hours?: number
+          flywheel_days?: number
+          skip_days?: number
+          max_followups_a?: number
+          max_followups_b?: number
+          max_followups_c?: number
+          opener_option_a?: string
+          groq_api_key?: string | null
+          custom_prompt?: string | null
+          working_days?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          follow_limit?: number
+          dm_limit?: number
+          followup_delay_hours?: number
+          flywheel_days?: number
+          skip_days?: number
+          max_followups_a?: number
+          max_followups_b?: number
+          max_followups_c?: number
+          opener_option_a?: string
+          groq_api_key?: string | null
+          custom_prompt?: string | null
+          working_days?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

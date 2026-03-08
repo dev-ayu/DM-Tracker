@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { LayoutDashboard, Users, BarChart3, LogOut, GitBranch, ListChecks, ChevronsLeft, ChevronsRight, Search, Settings, Zap } from "lucide-react";
+import { LayoutDashboard, Users, BarChart3, LogOut, GitBranch, ListChecks, ChevronsLeft, ChevronsRight, Settings, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher, { applyTheme, getStoredTheme } from "./ThemeSwitcher";
 import PwaInstallPrompt from "./PwaInstallPrompt";
@@ -12,6 +12,7 @@ const navItems = [
   { to: "/pipeline", icon: GitBranch, label: "Pipeline" },
   { to: "/contacts", icon: Users, label: "Contacts" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
@@ -74,18 +75,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </button>
         </div>
 
-        {/* Quick actions */}
-        {!collapsed && (
-          <div className="px-2 pb-2">
-            <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-[hsl(var(--sidebar-accent))] transition-colors">
-              <Search className="h-3.5 w-3.5" />
-              <span>Search</span>
-              <kbd className="ml-auto rounded bg-[hsl(var(--sidebar-accent))] px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-                ⌘K
-              </kbd>
-            </button>
-          </div>
-        )}
 
         {/* Nav items */}
         <nav className="flex flex-col gap-0.5 px-2 flex-1">

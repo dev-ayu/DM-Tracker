@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, startOfMonth, endOfMonth, setMonth } from "date-fns";
+import { startOfMonth, endOfMonth } from "date-fns";
+import { todayIST } from "@/lib/time";
 import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,18 +28,23 @@ const History = ({ userId }: { userId: string }) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [contactLimitReached, setContactLimitReached] = useState(false);
   const [flywheelCount, setFlywheelCount] = useState(0);
   const [metricView, setMetricView] = useState<"overall" | "stage">("overall");
   const [funnelOpen, setFunnelOpen] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [{ data }, { data: fwData }] = await Promise.all([
+    // Fix #9: cap at 3000 rows; show banner if limit hit
+    const [{ data, error: contactsError }, { data: fwData, error: fwError }] = await Promise.all([
       supabase.from("contacts")
         .select("id, full_name, username, status, followed_back, media_seen, followed_at, dmed_at, initiated_at, engaged_at, calendly_sent_at, booked_at, created_at")
-        .eq("user_id", userId).neq("status", "not_started"),
+        .eq("user_id", userId).neq("status", "not_started").limit(3000),
       supabase.from("contacts").select("id").eq("user_id", userId).eq("status", "flywheel"),
     ]);
+    if (contactsError) toast.error(`Failed to load contacts: ${contactsError.message}`);
+    if (fwError) toast.error(`Failed to load flywheel data: ${fwError.message}`);
 
     // Reconcile: fix contacts with downstream status but dmed_at = null
     const downstreamStatuses = ["dmed", "initiated", "engaged", "calendly_sent", "booked"];
@@ -62,6 +68,7 @@ const History = ({ userId }: { userId: string }) => {
     }
 
     setContacts((data as Contact[]) || []);
+    setContactLimitReached((data || []).length === 3000);
     setFlywheelCount((fwData || []).length);
     setLoading(false);
   }, [userId]);
@@ -69,8 +76,8 @@ const History = ({ userId }: { userId: string }) => {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const monthlyMetrics = useMemo(() => {
-    const year = new Date().getFullYear();
-    const start = startOfMonth(setMonth(new Date(year, 0), selectedMonth));
+    // Fix #8: use selectedYear so users can navigate to prior years
+    const start = startOfMonth(new Date(selectedYear, selectedMonth, 1));
     const end = endOfMonth(start);
 
     const inMonth = (dateStr: string | null) => {
@@ -114,7 +121,7 @@ const History = ({ userId }: { userId: string }) => {
         { label: "D", count: d },
       ],
     };
-  }, [contacts, selectedMonth]);
+  }, [contacts, selectedMonth, selectedYear]);
 
   const funnelColors = [
     { bg: "bg-blue-500", text: "text-blue-500", light: "bg-blue-500/15" },
@@ -130,8 +137,16 @@ const History = ({ userId }: { userId: string }) => {
 
   if (loading) return <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>;
 
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+
   return (
     <div className="space-y-4 overflow-x-hidden max-w-full">
+      {contactLimitReached && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          Showing first 3,000 contacts — some historical data may be excluded.
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-semibold shrink-0">Analytics</h1>
@@ -154,6 +169,17 @@ const History = ({ userId }: { userId: string }) => {
               Stage
             </button>
           </div>
+          {/* Fix #8: year selector for historical analytics */}
+          <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(parseInt(v))}>
+            <SelectTrigger className="w-[80px] h-7 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map(y => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(parseInt(v))}>
             <SelectTrigger className="w-[100px] h-7 text-xs">
               <SelectValue />
@@ -240,7 +266,7 @@ const RECOVER_STAGES = [
 type FWContact = { id: string; full_name: string; username: string | null; requeue_after: string };
 
 const FlywheelSection = ({ userId }: { userId: string }) => {
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = todayIST();
   const [readyContacts, setReadyContacts] = useState<FWContact[]>([]);
   const [waitingContacts, setWaitingContacts] = useState<FWContact[]>([]);
   const [showWaiting, setShowWaiting] = useState(true);
@@ -253,6 +279,8 @@ const FlywheelSection = ({ userId }: { userId: string }) => {
       supabase.from("contacts").select("id, full_name, username, requeue_after")
         .eq("user_id", userId).eq("status", "flywheel").gt("requeue_after", today).order("requeue_after"),
     ]);
+    if (readyRes.error) toast.error(`Flywheel fetch failed: ${readyRes.error.message}`);
+    if (waitingRes.error) toast.error(`Flywheel fetch failed: ${waitingRes.error.message}`);
     setReadyContacts((readyRes.data as FWContact[]) || []);
     setWaitingContacts((waitingRes.data as FWContact[]) || []);
   }, [userId, today]);
@@ -268,7 +296,6 @@ const FlywheelSection = ({ userId }: { userId: string }) => {
   const recoverToStage = async (contactId: string, stageKey: string) => {
     const stage = RECOVER_STAGES.find(s => s.key === stageKey)!;
     removeOptimistic(contactId);
-    toast.success(`Recovered → ${stage.label}`);
     const nowIso = new Date().toISOString();
     const updates: Record<string, any> = {
       status: stageKey, requeue_after: null, negative_reply: false, flywheel_reason: null,
@@ -276,17 +303,22 @@ const FlywheelSection = ({ userId }: { userId: string }) => {
       last_follow_up_at: stage.follow_up ? nowIso : null,
       [stage.dateField]: nowIso,
     };
-    await supabase.from("contacts").update(updates).eq("id", contactId);
+    const { error } = await supabase.from("contacts").update(updates).eq("id", contactId);
+    if (error) { toast.error(`Recovery failed: ${error.message}`); fetchFlywheel(); return; }
+    toast.success(`Recovered → ${stage.label}`);
   };
 
   const reinitiate = async (contactId: string) => {
     removeOptimistic(contactId);
-    toast.success("Re-initiated — back in follow queue");
-    await supabase.from("contacts").update({
+    // Fix #6: clear all funnel timestamps so analytics cohort is correct after re-entering
+    const { error } = await supabase.from("contacts").update({
       status: "not_started", requeue_after: null, current_follow_up: null,
       last_follow_up_at: null, initiated_at: null, negative_reply: false,
       flywheel_reason: null, engaged_at: null, calendly_sent_at: null, booked_at: null,
+      followed_at: null, dmed_at: null, followed_back: false, followed_back_at: null,
     }).eq("id", contactId);
+    if (error) { toast.error(`Reset failed: ${error.message}`); fetchFlywheel(); return; }
+    toast.success("Re-initiated — back in follow queue");
     // Clean up any existing queue entries for this contact, then insert into today's follow queue
     await supabase.from("daily_queues").delete().eq("contact_id", contactId).eq("completed", false);
     // Only insert if not already in today's follow queue
@@ -304,7 +336,7 @@ const FlywheelSection = ({ userId }: { userId: string }) => {
   const ContactRow = ({ c, showDaysLeft }: { c: FWContact; showDaysLeft?: boolean }) => {
     const isPickerOpen = openPicker === c.id;
     const daysLeft = c.requeue_after
-      ? Math.max(0, Math.ceil((new Date(c.requeue_after).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      ? Math.max(0, Math.ceil((new Date(c.requeue_after + "T00:00:00Z").getTime() - (Date.now() + 5.5 * 60 * 60 * 1000)) / (1000 * 60 * 60 * 24)))
       : 0;
     return (
       <div key={c.id} className="rounded-lg border border-border/40 bg-card p-3 space-y-2">

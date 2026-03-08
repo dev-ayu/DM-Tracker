@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSettings } from "@/contexts/SettingsContext";
 import { supabase } from "@/integrations/supabase/client";
-import { ExternalLink, ChevronRight, RotateCcw, ThumbsDown, Check, Eye, Search } from "lucide-react";
+import { ExternalLink, ChevronRight, RotateCcw, ThumbsDown, Check, Eye, Search, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { futureDateIST } from "@/lib/time";
 import { format, differenceInDays } from "date-fns";
 
 type PipelineContact = {
@@ -34,6 +36,7 @@ const STAGES = [
 ];
 
 const Pipeline = ({ userId }: { userId: string }) => {
+  const { settings } = useSettings();
   const [contacts, setContacts] = useState<PipelineContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContact, setSelectedContact] = useState<PipelineContact | null>(null);
@@ -49,7 +52,7 @@ const Pipeline = ({ userId }: { userId: string }) => {
       .from("contacts")
       .select("id, full_name, username, profile_link, status, media_seen, current_follow_up, last_follow_up_at, a2_notes, b_notes, dmed_at, initiated_at, engaged_at, calendly_sent_at, booked_at")
       .eq("user_id", userId)
-      .in("status", ["dmed", "initiated", "engaged", "calendly_sent", "booked"])
+      .in("status", ["dmed", "initiated", "engaged", "calendly_sent", "booked", "flywheel"])
       .order("dmed_at", { ascending: true });
 
     if (error) toast.error(error.message);
@@ -60,8 +63,18 @@ const Pipeline = ({ userId }: { userId: string }) => {
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
   const contactsByStage = (stage: string) => {
+    const tsField = stageTimestampField(stage);
     const q = (stageSearch[stage] || "").toLowerCase().trim();
-    return contacts.filter(c => c.status === stage && (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q)));
+    return contacts
+      .filter(c => c.status === stage && (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q)))
+      .sort((a, b) => {
+        const aTs = tsField ? (a[tsField] as string | null) : null;
+        const bTs = tsField ? (b[tsField] as string | null) : null;
+        if (!aTs && !bTs) return 0;
+        if (!aTs) return 1;
+        if (!bTs) return -1;
+        return bTs.localeCompare(aTs); // newest first
+      });
   };
 
   /* Ghost contacts: passed through this stage but are now in a later stage */
@@ -74,11 +87,26 @@ const Pipeline = ({ userId }: { userId: string }) => {
     const tsField = stageTimestampField(stageKey);
     if (!tsField) return [];
     const q = (stageSearch[stageKey] || "").toLowerCase().trim();
-    return contacts.filter(c =>
-      c.status !== stageKey &&         // not currently in this stage
-      c[tsField] != null &&            // has passed through this stage
-      (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q))
-    );
+    return contacts
+      .filter(c =>
+        c.status !== stageKey &&
+        c[tsField] != null &&
+        (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q))
+      )
+      .sort((a, b) => {
+        const aTs = a[tsField] as string | null;
+        const bTs = b[tsField] as string | null;
+        if (!aTs && !bTs) return 0;
+        if (!aTs) return 1;
+        if (!bTs) return -1;
+        return bTs.localeCompare(aTs); // newest first
+      });
+  };
+
+  /* Cumulative count: everyone who ever reached this stage (by timestamp) */
+  const cumulativeCount = (stageKey: string) => {
+    const ts = STAGES.find(s => s.key === stageKey)?.tsField as keyof PipelineContact;
+    return ts ? contacts.filter(c => c[ts] != null).length : 0;
   };
 
   const getStageLabelForStatus = (status: string) => {
@@ -139,19 +167,17 @@ const Pipeline = ({ userId }: { userId: string }) => {
     setContacts(prev => prev.filter(c => c.id !== contactId));
     if (selectedContact?.id === contactId) { setDrawerOpen(false); setSelectedContact(null); }
 
-    const requeue = new Date();
-    requeue.setDate(requeue.getDate() + 90);
     await supabase.from("contacts").update({
       status: "flywheel",
       flywheel_reason: reason,
       negative_reply: reason === "negative",
-      requeue_after: format(requeue, "yyyy-MM-dd"),
+      requeue_after: futureDateIST(settings.flywheel_days),
       current_follow_up: null,
       last_follow_up_at: null,
     }).eq("id", contactId);
     // Clean up any lingering uncompleted queue entries for this contact
     await supabase.from("daily_queues").delete().eq("contact_id", contactId).eq("completed", false);
-    toast.success("→ Flywheel (90d)");
+    toast.success(`→ Flywheel (${settings.flywheel_days}d)`);
     fetchContacts(true);
   };
 
@@ -224,14 +250,14 @@ const Pipeline = ({ userId }: { userId: string }) => {
       <div className="flex items-center justify-between pb-3 mb-3 border-b border-border gap-2">
         <div className="flex items-center gap-2 shrink-0">
           <h1 className="text-lg font-semibold">Pipeline</h1>
-          <span className="text-xs text-muted-foreground">{contacts.length}</span>
+          <span className="text-xs text-muted-foreground">{contacts.filter(c => c.status !== "flywheel").length}</span>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-          {STAGES.map(({ key, label, color, dotColor }) => (
+          {STAGES.map(({ key, label, dotColor }) => (
             <div key={key} className="flex items-center gap-1 shrink-0">
               <span className={`h-2 w-2 rounded-full ${dotColor}`} />
               <span className="text-[11px] text-muted-foreground hidden sm:inline">{label}</span>
-              <span className="text-xs font-semibold text-foreground">{contactsByStage(key).length}</span>
+              <span className="text-xs font-semibold text-foreground">{cumulativeCount(key)}</span>
             </div>
           ))}
         </div>
@@ -250,7 +276,7 @@ const Pipeline = ({ userId }: { userId: string }) => {
                 <div className="flex items-center gap-2 pb-2">
                   <span className={`h-2 w-2 rounded-full ${dotColor}`} />
                   <span className={`text-[11px] font-semibold uppercase tracking-wider ${color}`}>{label}</span>
-                  <span className="text-[10px] text-muted-foreground ml-auto">{stageContacts.length}{ghosts.length > 0 ? <span className="text-muted-foreground/40"> +{ghosts.length}</span> : null}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">{cumulativeCount(key)}</span>
                 </div>
                 {allVisible > 0 && (
                   <div className="relative mb-2">
@@ -380,11 +406,23 @@ const Pipeline = ({ userId }: { userId: string }) => {
             <>
               <SheetHeader className="pb-4 border-b border-border">
                 <SheetTitle className="text-left text-base">
-                  {selectedContact.full_name}
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(selectedContact.full_name); toast.success("Name copied"); }}
+                    className="hover:text-primary transition-colors text-left"
+                    title="Click to copy name"
+                  >
+                    {selectedContact.full_name}
+                  </button>
                 </SheetTitle>
                 <div className="flex items-center gap-2 mt-1">
                   {selectedContact.username && (
-                    <span className="text-xs text-muted-foreground">@{selectedContact.username}</span>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(selectedContact.username!); toast.success("Username copied"); }}
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      title="Click to copy username"
+                    >
+                      @{selectedContact.username}
+                    </button>
                   )}
                   <a
                     href={selectedContact.profile_link}
@@ -394,10 +432,23 @@ const Pipeline = ({ userId }: { userId: string }) => {
                   >
                     <ExternalLink className="h-3 w-3" /> Open Profile
                   </a>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(selectedContact.profile_link); toast.success("Link copied"); }}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    title="Copy profile link"
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
                 </div>
 
                 {/* Action buttons right in header */}
-                {selectedContact.status !== "booked" && (
+                {selectedContact.status === "flywheel" ? (
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs rounded-md bg-destructive/10 text-destructive px-2.5 py-1.5 font-medium">
+                      <RotateCcw className="h-3.5 w-3.5" /> In Flywheel
+                    </span>
+                  </div>
+                ) : selectedContact.status !== "booked" && (
                   <div className="flex flex-wrap gap-2 mt-3">
                     {(() => {
                       const next = getNextStage(selectedContact);

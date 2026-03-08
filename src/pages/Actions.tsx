@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useSettings } from "@/contexts/SettingsContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Copy, Zap, X, ThumbsDown, Clock, ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { format, subDays, addDays, previousFriday, nextMonday } from "date-fns";
+import { format, subDays, addDays } from "date-fns";
+import { todayIST, getDayIST, todayISTMidnight, futureDateIST } from "@/lib/time";
 
 type Contact = {
   id: string;
@@ -39,34 +41,29 @@ type FollowUpContact = {
   status: string;
 };
 
-const FOLLOW_LIMIT = 30;
-const DM_LIMIT = 30;
-
-const dayOfWeek = (d: Date) => d.getDay();
-const isWeekday = (d: Date) => { const dow = dayOfWeek(d); return dow >= 1 && dow <= 5; };
-
-const getPreviousWeekday = (d: Date): string => {
-  const dow = dayOfWeek(d);
-  if (dow === 1) return format(previousFriday(d), "yyyy-MM-dd");
-  return format(subDays(d, 1), "yyyy-MM-dd");
+/** Skip = +N calendar days. If that lands on a non-working day, bump forward. */
+const getSkipDate = (d: Date, skipDays: number, workingDays: Set<number>): string => {
+  let target = addDays(d, skipDays);
+  for (let i = 0; i < 7; i++) {
+    if (workingDays.has(getDayIST(target))) return target.toISOString().slice(0, 10);
+    target = addDays(target, 1);
+  }
+  return target.toISOString().slice(0, 10);
 };
 
-const getNextWeekday = (d: Date): string => {
-  const dow = dayOfWeek(d);
-  if (dow >= 5) return format(nextMonday(d), "yyyy-MM-dd"); // Fri/Sat/Sun → Monday
-  return format(addDays(d, 1), "yyyy-MM-dd");
-};
-
-/** Skip = +2 calendar days. If that lands on a weekend, bump to Monday. */
-const getSkipDate = (d: Date): string => {
-  const target = addDays(d, 2);
-  const dow = dayOfWeek(target);
-  if (dow === 0) return format(addDays(target, 1), "yyyy-MM-dd"); // Sun → Mon
-  if (dow === 6) return format(addDays(target, 2), "yyyy-MM-dd"); // Sat → Mon
-  return format(target, "yyyy-MM-dd");
+const getPreviousWorkingDay = (d: Date, workingDays: Set<number>): string => {
+  let target = subDays(d, 1);
+  for (let i = 0; i < 7; i++) {
+    if (workingDays.has(getDayIST(target))) return target.toISOString().slice(0, 10);
+    target = subDays(target, 1);
+  }
+  return subDays(d, 1).toISOString().slice(0, 10);
 };
 
 const Actions = ({ userId }: { userId: string }) => {
+  const { settings } = useSettings();
+  const FOLLOW_LIMIT = settings.follow_limit;
+  const DM_LIMIT = settings.dm_limit;
   const [followQueue, setFollowQueue] = useState<QueueItem[]>([]);
   const [dmQueue, setDmQueue] = useState<QueueItem[]>([]);
   const [openers, setOpeners] = useState<Record<string, string>>({});
@@ -74,13 +71,14 @@ const Actions = ({ userId }: { userId: string }) => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<"follow" | "dm">("follow");
+  const [autoQueueLoading, setAutoQueueLoading] = useState(false); // Fix #17: state instead of ref
   const scrollRef = useRef<HTMLDivElement>(null);
-  const autoQueueRunning = useRef(false);
   const scrollKey = "actions-scroll-pos";
 
   const now = new Date();
-  const today = format(now, "yyyy-MM-dd");
-  const isWeekdayToday = isWeekday(now);
+  const today = todayIST();
+  const workingDays = new Set((settings.working_days || "1,2,3,4,5").split(",").map(Number));
+  const isWeekdayToday = workingDays.has(getDayIST(now));
 
   const saveScroll = () => {
     if (scrollRef.current) sessionStorage.setItem(scrollKey, String(scrollRef.current.scrollTop));
@@ -92,7 +90,7 @@ const Actions = ({ userId }: { userId: string }) => {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const twentyFourHoursAgo = new Date(Date.now() - settings.followup_delay_hours * 60 * 60 * 1000).toISOString();
 
     const [followRes, dmRes, openersRes, followUpsRes] = await Promise.all([
       supabase
@@ -199,13 +197,22 @@ const Actions = ({ userId }: { userId: string }) => {
       return;
     }
 
-    // Only update contact status if we're checking (completing) OR if contact is still at the expected stage
+    // Fix #4: fetch current status before writing to avoid downgrading contacts
     if (!completed) {
-      // Checking: mark as followed/dmed
-      const contactUpdate: Record<string, any> = queueType === "follow"
-        ? { status: "followed", followed_at: nowIso }
-        : { status: "dmed", dmed_at: nowIso, dm_skip_count: 0 };
-      await supabase.from("contacts").update(contactUpdate).eq("id", contactId);
+      if (queueType === "follow") {
+        const { data: c } = await supabase.from("contacts").select("status").eq("id", contactId).single();
+        if (!c || c.status === "not_started") {
+          const { error: contactErr } = await supabase.from("contacts").update({ status: "followed", followed_at: nowIso }).eq("id", contactId);
+          if (contactErr) toast.error(`Contact update failed: ${contactErr.message}`);
+        }
+      } else {
+        const { data: c } = await supabase.from("contacts").select("status").eq("id", contactId).single();
+        if (!c || c.status === "followed") {
+          const { error: contactErr } = await supabase.from("contacts").update({ status: "dmed", dmed_at: nowIso, dm_skip_count: 0 }).eq("id", contactId);
+          if (contactErr) toast.error(`Contact update failed: ${contactErr.message}`);
+        }
+        // If contact has progressed past "followed", do NOT change their status
+      }
     } else {
       // Unchecking: only revert if contact hasn't progressed past the expected stage
       const { data: currentContact } = await supabase.from("contacts").select("status").eq("id", contactId).single();
@@ -230,13 +237,20 @@ const Actions = ({ userId }: { userId: string }) => {
     saveScroll();
     // Optimistic removal
     setDmQueue(prev => prev.filter(item => item.id !== queueId));
-    const skipDate = getSkipDate(now);
-    // Delete today's queue entry and any existing entry on skipped date, then create new one
-    await supabase.from("daily_queues").delete().eq("id", queueId);
-    await supabase.from("daily_queues").delete().eq("user_id", userId).eq("contact_id", contactId).eq("queue_date", skipDate).eq("queue_type", "dm");
-    await supabase.from("daily_queues").insert({ user_id: userId, contact_id: contactId, queue_date: skipDate, queue_type: "dm" as const });
-    await supabase.from("contacts").update({ dm_skip_count: currentSkipCount + 1 } as any).eq("id", contactId);
-    toast.success(`Skipped → ${skipDate}`);
+    const skipDate = getSkipDate(now, settings.skip_days, workingDays);
+    try {
+      const { error: delErr } = await supabase.from("daily_queues").delete().eq("id", queueId);
+      if (delErr) throw delErr;
+      await supabase.from("daily_queues").delete().eq("user_id", userId).eq("contact_id", contactId).eq("queue_date", skipDate).eq("queue_type", "dm");
+      const { error: insErr } = await supabase.from("daily_queues").insert({ user_id: userId, contact_id: contactId, queue_date: skipDate, queue_type: "dm" as const });
+      if (insErr) throw insErr;
+      const { error: updErr } = await supabase.from("contacts").update({ dm_skip_count: currentSkipCount + 1 } as any).eq("id", contactId);
+      if (updErr) throw updErr;
+      toast.success(`Skipped → ${skipDate}`);
+    } catch (err: any) {
+      toast.error(err.message || "Skip failed");
+      fetchData();
+    }
   };
 
   const removeFromQueue = async (queueId: string, contactId: string, queueType: string) => {
@@ -252,19 +266,26 @@ const Actions = ({ userId }: { userId: string }) => {
       setDmQueue(prev => prev.filter(item => item.id !== queueId));
     }
 
-    await supabase.from("openers").delete().eq("contact_id", contactId);
-    await supabase.from("daily_queues").delete().eq("contact_id", contactId);
-    await supabase.from("contacts").delete().eq("id", contactId);
+    const { error: opErr } = await supabase.from("openers").delete().eq("contact_id", contactId);
+    if (opErr) { toast.error(`Remove failed: ${opErr.message}`); fetchData(); return; }
+    const { error: qDelErr } = await supabase.from("daily_queues").delete().eq("contact_id", contactId);
+    if (qDelErr) { toast.error(`Remove failed: ${qDelErr.message}`); fetchData(); return; }
+    const { error: cDelErr } = await supabase.from("contacts").delete().eq("id", contactId);
+    if (cDelErr) { toast.error(`Remove failed: ${cDelErr.message}`); fetchData(); return; }
 
     if (queueType === "follow") {
+      // Fix #13: check current queue size before backfilling
       const { data: currentQueue } = await supabase
         .from("daily_queues").select("contact_id").eq("user_id", userId).eq("queue_date", today).eq("queue_type", "follow");
       const existingIds = new Set((currentQueue || []).map(q => q.contact_id));
       existingIds.add(contactId);
-      const { data: replacement } = await supabase.from("contacts").select("id").eq("user_id", userId).eq("status", "not_started").limit(50);
-      const available = (replacement || []).filter(c => !existingIds.has(c.id));
-      if (available.length > 0) {
-        await supabase.from("daily_queues").insert({ user_id: userId, contact_id: available[0].id, queue_date: today, queue_type: "follow" });
+      const currentQueueSize = (currentQueue || []).length; // already reflects deletion
+      if (currentQueueSize < FOLLOW_LIMIT) {
+        const { data: replacement } = await supabase.from("contacts").select("id").eq("user_id", userId).eq("status", "not_started").limit(50);
+        const available = (replacement || []).filter(c => !existingIds.has(c.id));
+        if (available.length > 0) {
+          await supabase.from("daily_queues").insert({ user_id: userId, contact_id: available[0].id, queue_date: today, queue_type: "follow" });
+        }
       }
     }
     toast.success("Removed & replaced");
@@ -291,16 +312,17 @@ const Actions = ({ userId }: { userId: string }) => {
     const existingIds = new Set((currentQueue || []).map(q => q.contact_id));
     existingIds.add(contactId);
     const { data: candidates } = await supabase
-      .from("contacts").select("id").eq("user_id", userId).eq("status", "followed").lt("followed_at", today).or("dm_skip_count.eq.0,dm_skip_count.is.null").limit(50);
+      .from("contacts").select("id").eq("user_id", userId).eq("status", "followed").lt("followed_at", todayISTMidnight()).is("dmed_at", null).or("dm_skip_count.eq.0,dm_skip_count.is.null").limit(50);
     const available = (candidates || []).filter(c => !existingIds.has(c.id));
     if (available.length > 0) {
       const newContactId = available[0].id;
       await supabase.from("daily_queues").insert({ user_id: userId, contact_id: newContactId, queue_date: today, queue_type: "dm" as const });
       // Auto-generate opener for the replacement contact
       try {
+        const { data: { session } } = await supabase.auth.getSession();
         await fetch("/api/generate-openers", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
           body: JSON.stringify({ userId }),
         });
       } catch (_) {}
@@ -315,13 +337,16 @@ const Actions = ({ userId }: { userId: string }) => {
     if (!window.confirm(`Delete "${contactName}" permanently?`)) return;
     saveScroll();
     setDmQueue(prev => prev.filter(item => item.id !== queueId));
-    await supabase.from("openers").delete().eq("contact_id", contactId);
-    await supabase.from("daily_queues").delete().eq("contact_id", contactId);
+    const { error: opErr } = await supabase.from("openers").delete().eq("contact_id", contactId);
+    if (opErr) { toast.error(`Remove failed: ${opErr.message}`); fetchData(); return; }
+    const { error: qDelErr } = await supabase.from("daily_queues").delete().eq("contact_id", contactId);
+    if (qDelErr) { toast.error(`Remove failed: ${qDelErr.message}`); fetchData(); return; }
     // Only delete contact if they haven't been DMed yet — preserve metrics
     const { data: contactData } = await supabase.from("contacts").select("status, dmed_at").eq("id", contactId).single();
     const dmedStatuses = ["dmed", "initiated", "engaged", "calendly_sent", "booked"];
     if (!contactData || (!dmedStatuses.includes(contactData.status) && !contactData.dmed_at)) {
-      await supabase.from("contacts").delete().eq("id", contactId);
+      const { error: cDelErr } = await supabase.from("contacts").delete().eq("id", contactId);
+      if (cDelErr) { toast.error(`Delete failed: ${cDelErr.message}`); fetchData(); return; }
       toast.success("Contact deleted");
     } else {
       toast.success("Removed from queue (contact preserved for metrics)");
@@ -329,10 +354,9 @@ const Actions = ({ userId }: { userId: string }) => {
   };
 
   const autoQueue = async () => {
-    if (!isWeekdayToday) return;
-    if (autoQueueRunning.current) return;
-    autoQueueRunning.current = true;
-    try { await _autoQueueImpl(); } finally { autoQueueRunning.current = false; }
+    if (!isWeekdayToday || autoQueueLoading) return;
+    setAutoQueueLoading(true);
+    try { await _autoQueueImpl(); } finally { setAutoQueueLoading(false); }
   };
 
   const _autoQueueImpl = async () => {
@@ -362,7 +386,7 @@ const Actions = ({ userId }: { userId: string }) => {
 
     const { data: unsentDms } = await supabase
       .from("daily_queues").select("contact_id, queue_date").eq("user_id", userId).eq("queue_type", "dm").eq("completed", false).lt("queue_date", today).order("queue_date", { ascending: true });
-    const prevWeekday = getPreviousWeekday(now);
+    const prevWeekday = getPreviousWorkingDay(now, workingDays);
     const { data: yesterdayFollowed } = await supabase
       .from("daily_queues").select("contact_id").eq("user_id", userId).eq("queue_date", prevWeekday).eq("queue_type", "follow").eq("completed", true);
     const { data: existingDms } = await supabase
@@ -413,9 +437,10 @@ const Actions = ({ userId }: { userId: string }) => {
 
     // Auto-generate openers for all new DM contacts
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       await fetch("/api/generate-openers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
         body: JSON.stringify({ userId }),
       });
     } catch (_) {}
@@ -427,9 +452,10 @@ const Actions = ({ userId }: { userId: string }) => {
     if (!isWeekdayToday) return;
     setGenerating(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/generate-openers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session?.access_token}` },
         body: JSON.stringify({ userId }),
       });
       const data = await res.json();
@@ -446,7 +472,6 @@ const Actions = ({ userId }: { userId: string }) => {
   const copyOpener = (text: string) => { navigator.clipboard.writeText(text); toast.success("Copied!"); };
 
   const markFollowUpSent = async (contact: FollowUpContact) => {
-    // Optimistic removal
     setFollowUps(prev => prev.filter(f => f.id !== contact.id));
 
     const nowIso = new Date().toISOString();
@@ -454,7 +479,9 @@ const Actions = ({ userId }: { userId: string }) => {
     const letter = fu.slice(-1);
     const num = parseInt(fu.slice(0, -1));
 
-    const maxA = 1, maxB = 8, maxC = 8;
+    const maxA = settings.max_followups_a;
+    const maxB = settings.max_followups_b;
+    const maxC = settings.max_followups_c;
 
     if (letter === "A" && num >= maxA) {
       await sendToFlywheel(contact.id, "no_reply_1a");
@@ -465,10 +492,15 @@ const Actions = ({ userId }: { userId: string }) => {
     } else {
       const nextNum = num + 1;
       const nextFu = `${nextNum}${letter}`;
-      await supabase.from("contacts").update({
+      const { error } = await supabase.from("contacts").update({
         current_follow_up: nextFu,
         last_follow_up_at: nowIso,
       }).eq("id", contact.id);
+      if (error) {
+        toast.error(`Follow-up update failed: ${error.message}`);
+        setFollowUps(prev => [...prev, contact]);
+        return;
+      }
     }
 
     toast.success(`Follow-up ${fu} sent`);
@@ -481,46 +513,39 @@ const Actions = ({ userId }: { userId: string }) => {
     const nowIso = new Date().toISOString();
     const letter = contact.current_follow_up.slice(-1);
 
+    let updateObj: Record<string, any>;
+    let successMsg: string;
     if (letter === "A") {
-      await supabase.from("contacts").update({
-        status: "engaged",
-        engaged_at: nowIso,
-        current_follow_up: "1B",
-        last_follow_up_at: nowIso,
-      }).eq("id", contact.id);
-      toast.success("Moved to Engaged");
+      updateObj = { status: "engaged", engaged_at: nowIso, current_follow_up: "1B", last_follow_up_at: nowIso };
+      successMsg = "Moved to Engaged";
     } else if (letter === "B") {
-      await supabase.from("contacts").update({
-        status: "calendly_sent",
-        calendly_sent_at: nowIso,
-        current_follow_up: "1C",
-        last_follow_up_at: nowIso,
-      }).eq("id", contact.id);
-      toast.success("Moved to Calendly");
-    } else if (letter === "C") {
-      await supabase.from("contacts").update({
-        status: "booked",
-        booked_at: nowIso,
-        current_follow_up: null,
-        last_follow_up_at: null,
-      }).eq("id", contact.id);
-      toast.success("Booked!");
+      updateObj = { status: "calendly_sent", calendly_sent_at: nowIso, current_follow_up: "1C", last_follow_up_at: nowIso };
+      successMsg = "Moved to Calendly";
+    } else {
+      updateObj = { status: "booked", booked_at: nowIso, current_follow_up: null, last_follow_up_at: null };
+      successMsg = "Booked!";
     }
+    const { error } = await supabase.from("contacts").update(updateObj).eq("id", contact.id);
+    if (error) {
+      toast.error(`Update failed: ${error.message}`);
+      setFollowUps(prev => [...prev, contact]);
+      return;
+    }
+    toast.success(successMsg);
     fetchData();
   };
 
   const sendToFlywheel = async (contactId: string, reason: string) => {
-    const requeue = new Date();
-    requeue.setDate(requeue.getDate() + 90);
-    await supabase.from("contacts").update({
+    const { error } = await supabase.from("contacts").update({
       status: "flywheel",
       flywheel_reason: reason,
       negative_reply: reason === "negative",
-      requeue_after: format(requeue, "yyyy-MM-dd"),
+      requeue_after: futureDateIST(settings.flywheel_days),
       current_follow_up: null,
       last_follow_up_at: null,
     }).eq("id", contactId);
-    toast.success("Sent to flywheel (90 days)");
+    if (error) { toast.error(`Flywheel update failed: ${error.message}`); return; }
+    toast.success(`Sent to flywheel (${settings.flywheel_days} days)`);
     fetchData();
   };
 
@@ -557,7 +582,9 @@ const Actions = ({ userId }: { userId: string }) => {
         </div>
         <div className="flex gap-2">
           {followQueue.length === 0 && (
-            <Button variant="outline" size="sm" onClick={autoQueue}>Load Queue</Button>
+            <Button variant="outline" size="sm" onClick={autoQueue} disabled={autoQueueLoading}>
+              {autoQueueLoading ? "Loading..." : "Load Queue"}
+            </Button>
           )}
           <Button size="sm" onClick={generateOpeners} disabled={generating}>
             <Zap className="mr-1 h-3.5 w-3.5" />
