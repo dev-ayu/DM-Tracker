@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { startOfMonth, endOfMonth } from "date-fns";
 import { todayIST } from "@/lib/time";
-import { ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, RotateCcw, Settings } from "lucide-react";
+import { NavLink } from "react-router-dom";
 import { toast } from "sonner";
 
 type Contact = {
@@ -148,9 +149,18 @@ const History = ({ userId }: { userId: string }) => {
         </div>
       )}
       {/* Header */}
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold shrink-0">Analytics</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <h1 className="text-lg font-semibold">Analytics</h1>
+          <NavLink
+            to="/settings"
+            className="md:hidden flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded-md hover:bg-muted"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Settings
+          </NavLink>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="inline-flex items-center rounded-full border border-border p-0.5">
             <button
               onClick={() => setMetricView("overall")}
@@ -169,27 +179,28 @@ const History = ({ userId }: { userId: string }) => {
               Stage
             </button>
           </div>
-          {/* Fix #8: year selector for historical analytics */}
-          <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(parseInt(v))}>
-            <SelectTrigger className="w-[80px] h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map(y => (
-                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(parseInt(v))}>
-            <SelectTrigger className="w-[100px] h-7 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MONTHS.map((m, i) => (
-                <SelectItem key={i} value={String(i)}>{m}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2 ml-auto">
+            <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(parseInt(v))}>
+              <SelectTrigger className="w-[72px] h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map(y => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(parseInt(v))}>
+              <SelectTrigger className="w-[90px] h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m, i) => (
+                  <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 

@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { LayoutDashboard, Users, BarChart3, LogOut, GitBranch, ListChecks, ChevronsLeft, ChevronsRight, Settings, Zap } from "lucide-react";
+import {
+  LayoutDashboard, Users, BarChart3, LogOut, GitBranch, ListChecks,
+  ChevronsLeft, ChevronsRight, Settings, User,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import ThemeSwitcher, { applyTheme, getStoredTheme } from "./ThemeSwitcher";
 import PwaInstallPrompt from "./PwaInstallPrompt";
@@ -15,42 +18,140 @@ const navItems = [
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
 
+// Only Dashboard, Daily Actions, Pipeline shown in mobile bottom nav
+// Profile button is the 4th slot (custom)
+const mobileMainNav = [
+  { to: "/", icon: LayoutDashboard },
+  { to: "/actions", icon: ListChecks },
+  { to: "/pipeline", icon: GitBranch },
+];
+
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const lastTapRef = useRef<number>(0);
+  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { applyTheme(getStoredTheme()); }, []);
 
   const handleLogout = async () => {
+    setProfileMenuOpen(false);
     await supabase.auth.signOut();
     navigate("/auth");
   };
 
+  // Single tap → toggle profile menu
+  // Double tap → go to /auth (switch account / re-login)
+  const handleProfileTap = () => {
+    const now = Date.now();
+    const elapsed = now - lastTapRef.current;
+    lastTapRef.current = now;
+
+    if (elapsed < 320 && tapTimerRef.current) {
+      // Double tap
+      clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = null;
+      setProfileMenuOpen(false);
+      handleLogout();
+    } else {
+      // First tap — wait to see if a second tap follows
+      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = setTimeout(() => {
+        tapTimerRef.current = null;
+        setProfileMenuOpen(prev => !prev);
+      }, 300);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Mobile bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/80 backdrop-blur-sm md:hidden safe-area-bottom">
-        <nav className="flex items-center justify-around py-1">
-          {navItems.map(({ to, icon: Icon, label }) => (
+      {/* ─── Mobile bottom nav (PWA / phone only) ─── */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/90 backdrop-blur-sm md:hidden safe-area-bottom">
+        <nav className="flex items-center justify-around py-2">
+          {mobileMainNav.map(({ to, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               end={to === "/"}
               className={({ isActive }) =>
                 cn(
-                  "flex flex-col items-center gap-0.5 px-3 py-2 min-h-[44px] min-w-[44px] text-[10px] transition-colors rounded-md touch-target",
-                  isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                  "flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl transition-colors",
+                  isActive ? "text-foreground" : "text-muted-foreground"
                 )
               }
             >
-              <Icon className="h-5 w-5" strokeWidth={1.8} />
-              <span>{label}</span>
+              <Icon className="h-[22px] w-[22px]" strokeWidth={1.8} />
             </NavLink>
           ))}
+
+          {/* Profile button */}
+          <button
+            onClick={handleProfileTap}
+            className={cn(
+              "flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl transition-colors",
+              profileMenuOpen ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <User className="h-[22px] w-[22px]" strokeWidth={1.8} />
+          </button>
         </nav>
       </div>
 
-      {/* Desktop Notion-style sidebar */}
+      {/* Profile popup menu (mobile only) */}
+      {profileMenuOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 md:hidden"
+            onClick={() => setProfileMenuOpen(false)}
+          />
+          {/* Card */}
+          <div className="fixed bottom-[68px] right-3 z-50 md:hidden rounded-2xl border border-border bg-card shadow-xl overflow-hidden min-w-[180px]">
+            <div className="px-4 pt-3 pb-2 border-b border-border/50">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Account</p>
+            </div>
+            <div className="py-1">
+              <NavLink
+                to="/settings"
+                onClick={() => setProfileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted transition-colors"
+              >
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                Settings
+              </NavLink>
+              <NavLink
+                to="/contacts"
+                onClick={() => setProfileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted transition-colors"
+              >
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Contacts
+              </NavLink>
+              <NavLink
+                to="/analytics"
+                onClick={() => setProfileMenuOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-muted transition-colors"
+              >
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                Analytics
+              </NavLink>
+            </div>
+            <div className="border-t border-border/50 py-1">
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-500/5 transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                Log out
+              </button>
+            </div>
+            <p className="px-4 pb-3 pt-1 text-[10px] text-muted-foreground/50">Double-tap profile to switch account</p>
+          </div>
+        </>
+      )}
+
+      {/* ─── Desktop sidebar ─── */}
       <aside
         className={cn(
           "fixed left-0 top-0 hidden h-full border-r border-border bg-[hsl(var(--sidebar-background))] md:flex flex-col transition-all duration-200 z-40",
@@ -74,7 +175,6 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
         </div>
-
 
         {/* Nav items */}
         <nav className="flex flex-col gap-0.5 px-2 flex-1">
