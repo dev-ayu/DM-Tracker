@@ -149,9 +149,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex items-center justify-between px-3 py-3 min-h-[52px]">
           {!collapsed && (
             <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-6 w-6 items-center justify-center rounded bg-foreground text-background text-[11px] font-bold shrink-0">
-                R
-              </div>
+              <img src="/pwa-192.png" alt="DM Ritual" className="h-6 w-6 rounded shrink-0" />
               <span className="text-sm font-semibold text-foreground truncate">DM Ritual</span>
             </div>
           )}

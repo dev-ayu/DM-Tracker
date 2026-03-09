@@ -1,5 +1,5 @@
 -- ══════════════════════════════════════════════════════════════════
---  ReachMate — Full Schema Migration
+--  DM Ritual — Full Schema Migration
 --  Run this ONCE in your new Supabase project → SQL Editor → New query
 -- ══════════════════════════════════════════════════════════════════
 

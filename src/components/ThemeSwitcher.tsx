@@ -17,7 +17,7 @@ export const THEMES = [
 
 export type ThemeId = typeof THEMES[number]["id"];
 
-const STORAGE_KEY = "reachmate-theme";
+const STORAGE_KEY = "dm-ritual-theme";
 
 export function getStoredTheme(): ThemeId {
   try {

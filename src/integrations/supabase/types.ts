@@ -232,6 +232,7 @@ export type Database = {
           opener_option_a: string
           groq_api_key: string | null
           custom_prompt: string | null
+          opener_templates: Json | null
           working_days: string
           updated_at: string
         }
@@ -248,6 +249,7 @@ export type Database = {
           opener_option_a?: string
           groq_api_key?: string | null
           custom_prompt?: string | null
+          opener_templates?: Json | null
           working_days?: string
           updated_at?: string
         }
@@ -264,6 +266,7 @@ export type Database = {
           opener_option_a?: string
           groq_api_key?: string | null
           custom_prompt?: string | null
+          opener_templates?: Json | null
           working_days?: string
           updated_at?: string
         }

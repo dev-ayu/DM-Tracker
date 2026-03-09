@@ -1,4 +1,4 @@
-# ReachMate — Supabase Migration Guide
+# DM Ritual — Supabase Migration Guide
 
 ## Step 1: Set up your new Supabase project
 

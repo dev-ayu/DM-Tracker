@@ -1,6 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface OpenerTemplate {
+  text: string;
+  condition: string;
+  order: number;
+}
+
 export interface UserSettings {
   follow_limit: number;
   dm_limit: number;
@@ -13,19 +19,63 @@ export interface UserSettings {
   opener_option_a: string;
   groq_api_key: string | null;
   custom_prompt: string | null;
+  opener_templates: OpenerTemplate[] | null;
   working_days: string;
 }
 
-export const DEFAULT_PROMPT_TEMPLATE = `You are a sales outreach assistant. For each contact below, pick the BEST opener from these two options ONLY:
+export const DEFAULT_TEMPLATES: OpenerTemplate[] = [
+  { text: "[GREETING] [NAME], do you accept new clients for Botox right now?", condition: "A person's name is present", order: 0 },
+  { text: "[GREETING], do you accept new clients for Botox right now?", condition: "No clear person name is present", order: 1 },
+];
 
-Option A: "{{option_a}}"
-Option B: "Still running [BUSINESS NAME]?" (use this ONLY if their bio clearly mentions a business, brand, company, or clinic they own/founded - extract the actual business name)
+export function buildPromptFromTemplates(templates: OpenerTemplate[]): string {
+  const optionLines = templates
+    .map((t, i) => `Option ${i + 1}: "${t.text}"\n  → Use when: ${t.condition}`)
+    .join("\n\n");
+
+  // Detect bracket placeholders to add context-specific rules
+  const allText = templates.map(t => t.text).join(" ");
+  const hasGreeting = allText.includes("[GREETING]");
+  const hasName = allText.includes("[NAME]");
+
+  const rules: string[] = [];
+  if (hasGreeting) {
+    rules.push('- [GREETING] must be one of: "Hi", "Hey", or "Hello" (vary it, don\'t always use the same one)');
+  }
+  if (hasName) {
+    rules.push('- For [NAME], use the name field as given, but do NOT add titles like "Dr"');
+    rules.push('- If you are unsure whether it\'s a real name, use the option without [NAME]');
+  }
+  rules.push("- For any other bracket placeholders like [BUSINESS NAME], extract the actual value from the contact's bio");
+  rules.push("- Return ONLY the opener text, nothing else");
+  rules.push("- One line per contact, in the same order");
+
+  return `You are a sales outreach assistant. For each contact below, generate the BEST opener using these options ONLY:
+
+${optionLines}
 
 Rules:
-- If the bio mentions they are a founder, owner, CEO, or co-founder of a specific business/brand, use Option B with that business name
-- Otherwise, always default to Option A ("{{option_a}}")
+${rules.join("\n")}
+
+Contacts:
+{{contacts}}`;
+}
+
+// Legacy template kept for backward compatibility with users who have custom_prompt using {{option_a}}
+export const DEFAULT_PROMPT_TEMPLATE = `You are a sales outreach assistant. For each contact below, generate the BEST opener using these options ONLY:
+
+Option 1: "[GREETING] [NAME], do you accept new clients for Botox right now?"
+  → Use when: A person's name is present
+
+Option 2: "[GREETING], do you accept new clients for Botox right now?"
+  → Use when: No clear person name is present
+
+Rules:
+- [GREETING] must be one of: "Hi", "Hey", or "Hello" (vary it, don't always use the same one)
+- For [NAME], use the name field as given, but do NOT add titles like "Dr"
+- If you are unsure whether it's a real name, use Option 2
 - Return ONLY the opener text, nothing else
-- One line per contact
+- One line per contact, in the same order
 
 Contacts:
 {{contacts}}`;
@@ -39,9 +89,10 @@ export const DEFAULT_SETTINGS: UserSettings = {
   max_followups_a: 1,
   max_followups_b: 8,
   max_followups_c: 8,
-  opener_option_a: "Are you taking on more clients atm?",
+  opener_option_a: "Hey, do you accept new clients for Botox right now?",
   groq_api_key: null,
   custom_prompt: null,
+  opener_templates: null,
   working_days: "1,2,3,4,5",
 };
 

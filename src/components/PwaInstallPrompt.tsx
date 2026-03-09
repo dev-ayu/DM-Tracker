@@ -53,7 +53,7 @@ const PwaInstallPrompt = () => {
           <Download className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold leading-tight">Install ReachMate</p>
+          <p className="text-sm font-semibold leading-tight">Install DM Ritual</p>
           <p className="text-xs text-muted-foreground mt-0.5">Add to home screen for the best experience</p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">

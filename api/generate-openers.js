@@ -34,33 +34,88 @@ export default async function handler(req, res) {
     // Service-role client is used only after auth is confirmed
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch user settings to resolve Groq key, opener template, and custom prompt
+    // Fetch user settings to resolve Groq key, opener templates, and custom prompt
     const { data: userSettings } = await supabase
       .from("user_settings")
-      .select("groq_api_key, opener_option_a, custom_prompt")
+      .select("groq_api_key, opener_option_a, custom_prompt, opener_templates")
       .eq("user_id", userId)
       .maybeSingle();
 
     const groqApiKey = userSettings?.groq_api_key || process.env.GROQ_API_KEY;
     if (!groqApiKey) throw new Error("No Groq API key configured — set GROQ_API_KEY or add your own in Settings");
 
-    const openerOptionA = userSettings?.opener_option_a || "Are you taking on more clients atm?";
+    const openerOptionA = userSettings?.opener_option_a || "Hey, do you accept new clients for Botox right now?";
 
-    const DEFAULT_PROMPT_TEMPLATE = `You are a sales outreach assistant. For each contact below, pick the BEST opener from these two options ONLY:
+    // Build prompt from templates (new system) or fall back to legacy
+    function buildPromptFromTemplates(templates) {
+      const optionLines = templates
+        .map((t, i) => `Option ${i + 1}: "${t.text}"\n  → Use when: ${t.condition}`)
+        .join("\n\n");
 
-Option A: "{{option_a}}"
-Option B: "Still running [BUSINESS NAME]?" (use this ONLY if their bio clearly mentions a business, brand, company, or clinic they own/founded - extract the actual business name)
+      // Detect bracket placeholders to add context-specific rules
+      const allText = templates.map(t => t.text).join(" ");
+      const hasGreeting = allText.includes("[GREETING]");
+      const hasName = allText.includes("[NAME]");
+
+      const rules = [];
+      if (hasGreeting) {
+        rules.push('- [GREETING] must be one of: "Hi", "Hey", or "Hello" (vary it, don\'t always use the same one)');
+      }
+      if (hasName) {
+        rules.push('- For [NAME], use the name field as given, but do NOT add titles like "Dr"');
+        rules.push('- If you are unsure whether it\'s a real name, use the option without [NAME]');
+      }
+      rules.push("- For any other bracket placeholders like [BUSINESS NAME], extract the actual value from the contact's bio");
+      rules.push("- Return ONLY the opener text, nothing else");
+      rules.push("- One line per contact, in the same order");
+
+      return `You are a sales outreach assistant. For each contact below, generate the BEST opener using these options ONLY:
+
+${optionLines}
 
 Rules:
-- If the bio mentions they are a founder, owner, CEO, or co-founder of a specific business/brand, use Option B with that business name
-- Otherwise, always default to Option A ("{{option_a}}")
+${rules.join("\n")}
+
+Contacts:
+{{contacts}}`;
+    }
+
+    const DEFAULT_PROMPT_TEMPLATE = `You are a sales outreach assistant. For each contact below, generate the BEST opener using these options ONLY:
+
+Option 1: "[GREETING] [NAME], do you accept new clients for Botox right now?"
+  → Use when: A person's name is present
+
+Option 2: "[GREETING], do you accept new clients for Botox right now?"
+  → Use when: No clear person name is present
+
+Rules:
+- [GREETING] must be one of: "Hi", "Hey", or "Hello" (vary it, don't always use the same one)
+- For [NAME], use the name field as given, but do NOT add titles like "Dr"
+- If you are unsure whether it's a real name, use Option 2
 - Return ONLY the opener text, nothing else
-- One line per contact
+- One line per contact, in the same order
 
 Contacts:
 {{contacts}}`;
 
-    const promptTemplate = userSettings?.custom_prompt || DEFAULT_PROMPT_TEMPLATE;
+    // Resolve prompt template: custom_prompt > opener_templates > legacy default
+    let promptTemplate;
+    const templates = userSettings?.opener_templates;
+    if (userSettings?.custom_prompt) {
+      // Power user has a custom prompt — use it directly
+      promptTemplate = userSettings.custom_prompt;
+    } else if (Array.isArray(templates) && templates.length > 0) {
+      // New templates system — auto-generate prompt
+      promptTemplate = buildPromptFromTemplates(templates);
+    } else {
+      // Legacy fallback — use old default with {{option_a}} substitution
+      promptTemplate = DEFAULT_PROMPT_TEMPLATE;
+    }
+
+    // Fallback opener for failed generations
+    const fallbackOpener = (Array.isArray(templates) && templates.length > 0)
+      ? templates[0].text
+      : openerOptionA;
 
     // Get contacts in today's DM queue + any followed contacts needing openers
     const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -173,7 +228,7 @@ Contacts:
         openers.push({
           user_id: contact.user_id,
           contact_id: contact.id,
-          opener_text: lines[idx] || openerOptionA,
+          opener_text: lines[idx] || fallbackOpener,
         });
       });
 

@@ -58,11 +58,19 @@ const Contacts = ({ userId }: { userId: string }) => {
 
   const deleteContact = async (id: string, name: string) => {
     if (!window.confirm(`Delete "${name}" permanently?`)) return;
+    // Optimistic removal
     setContacts(prev => prev.filter(c => c.id !== id));
-    toast.success("Contact deleted");
+
     await supabase.from("openers").delete().eq("contact_id", id);
     await supabase.from("daily_queues").delete().eq("contact_id", id);
-    await supabase.from("contacts").delete().eq("id", id);
+    const { error } = await supabase.from("contacts").delete().eq("id", id);
+    if (error) {
+      toast.error(`Delete failed: ${error.message}`);
+      // Rollback: re-fetch to restore correct state
+      fetchContacts();
+      return;
+    }
+    toast.success("Contact deleted");
   };
 
   const filtered = useMemo(() =>

@@ -9,6 +9,7 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -22,6 +23,12 @@ const Auth = () => {
         toast.success("Logged in!");
         navigate("/", { replace: true });
       } else {
+        // Fix #16: validate passwords match before sending to Supabase
+        if (password !== confirmPassword) {
+          toast.error("Passwords do not match");
+          setLoading(false);
+          return;
+        }
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         toast.success("Check your email to confirm your account!");
@@ -38,11 +45,9 @@ const Auth = () => {
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-foreground text-background text-lg font-bold">
-              R
-            </div>
+            <img src="/pwa-192.png" alt="DM Ritual" className="h-10 w-10 rounded-lg" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">ReachMate</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">DM Ritual</h1>
           <p className="text-sm text-muted-foreground">
             {isLogin ? "Welcome back. Sign in to continue." : "Create your account to get started."}
           </p>
@@ -72,6 +77,20 @@ const Auth = () => {
               className="h-10"
             />
           </div>
+          {!isLogin && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Confirm Password</label>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                className="h-10"
+              />
+            </div>
+          )}
           <Button type="submit" className="w-full h-10 mt-2" disabled={loading}>
             {loading ? "..." : isLogin ? "Continue" : "Create account"}
           </Button>

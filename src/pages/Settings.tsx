@@ -3,14 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Eye, EyeOff, RotateCcw, Pencil, ChevronUp } from "lucide-react";
-import { useSettings, DEFAULT_SETTINGS, DEFAULT_PROMPT_TEMPLATE, UserSettings } from "@/contexts/SettingsContext";
+import { Eye, EyeOff, RotateCcw, Pencil, ChevronUp, Plus, Trash2, ChevronDown } from "lucide-react";
+import { useSettings, DEFAULT_SETTINGS, DEFAULT_PROMPT_TEMPLATE, DEFAULT_TEMPLATES, buildPromptFromTemplates, UserSettings, OpenerTemplate } from "@/contexts/SettingsContext";
 
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-type FormState = Omit<UserSettings, "groq_api_key" | "custom_prompt"> & {
+type FormState = Omit<UserSettings, "groq_api_key" | "custom_prompt" | "opener_templates"> & {
   groq_api_key: string;
   custom_prompt: string;
+  opener_templates: OpenerTemplate[];
 };
 
 function validate(form: FormState): string | null {
@@ -22,8 +23,14 @@ function validate(form: FormState): string | null {
   if (form.max_followups_a < 1 || form.max_followups_a > 10) return "Stage A cap must be 1–10";
   if (form.max_followups_b < 1 || form.max_followups_b > 20) return "Stage B cap must be 1–20";
   if (form.max_followups_c < 1 || form.max_followups_c > 20) return "Stage C cap must be 1–20";
-  if (form.opener_option_a.trim().length < 5) return "Default opener text is too short (min 5 chars)";
-  if (form.opener_option_a.trim().length > 200) return "Default opener text is too long (max 200 chars)";
+  if (form.opener_templates.length === 0) return "Add at least one opener template";
+  for (let i = 0; i < form.opener_templates.length; i++) {
+    const t = form.opener_templates[i];
+    if (t.text.trim().length < 5) return `Template ${i + 1}: opener text is too short (min 5 chars)`;
+    if (t.text.trim().length > 200) return `Template ${i + 1}: opener text is too long (max 200 chars)`;
+    if (t.condition.trim().length < 5) return `Template ${i + 1}: condition is too short (min 5 chars)`;
+    if (t.condition.trim().length > 500) return `Template ${i + 1}: condition is too long (max 500 chars)`;
+  }
   if (form.custom_prompt.trim() && !form.custom_prompt.includes("{{contacts}}"))
     return 'Custom prompt must include the {{contacts}} placeholder';
   const days = form.working_days.split(",").map(Number).filter(n => n >= 0 && n <= 6);
@@ -38,6 +45,7 @@ const Settings = ({ userId }: { userId: string }) => {
     ...DEFAULT_SETTINGS,
     groq_api_key: "",
     custom_prompt: "",
+    opener_templates: [...DEFAULT_TEMPLATES],
   });
 
   const [hasStoredKey, setHasStoredKey] = useState(false);
@@ -45,8 +53,10 @@ const Settings = ({ userId }: { userId: string }) => {
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
   const [aiEditing, setAiEditing] = useState(false);
+  const [promptEditing, setPromptEditing] = useState(false);
 
   useEffect(() => {
+    const templates: OpenerTemplate[] = (settings.opener_templates as OpenerTemplate[] | null) ?? [...DEFAULT_TEMPLATES];
     setForm({
       follow_limit: settings.follow_limit,
       dm_limit: settings.dm_limit,
@@ -59,10 +69,12 @@ const Settings = ({ userId }: { userId: string }) => {
       opener_option_a: settings.opener_option_a,
       groq_api_key: "",
       custom_prompt: settings.custom_prompt ?? "",
+      opener_templates: templates,
       working_days: settings.working_days ?? "1,2,3,4,5",
     });
     setHasStoredKey(!!settings.groq_api_key);
     setKeyDirty(false);
+    setPromptEditing(!!settings.custom_prompt);
   }, [settings]);
 
   const setNum = (field: keyof FormState, value: string) => {
@@ -98,8 +110,9 @@ const Settings = ({ userId }: { userId: string }) => {
         max_followups_a: form.max_followups_a,
         max_followups_b: form.max_followups_b,
         max_followups_c: form.max_followups_c,
-        opener_option_a: form.opener_option_a.trim(),
-        custom_prompt: form.custom_prompt.trim() || null,
+        opener_option_a: form.opener_templates[0]?.text.trim() || form.opener_option_a.trim(),
+        opener_templates: form.opener_templates.map((t, i) => ({ text: t.text.trim(), condition: t.condition.trim(), order: i })),
+        custom_prompt: promptEditing && form.custom_prompt.trim() ? form.custom_prompt.trim() : null,
         working_days: form.working_days,
         updated_at: new Date().toISOString(),
       };
@@ -123,7 +136,31 @@ const Settings = ({ userId }: { userId: string }) => {
     }
   };
 
-  const isPromptCustomised = form.custom_prompt.trim() !== "";
+  const isPromptCustomised = promptEditing && form.custom_prompt.trim() !== "";
+  const autoPrompt = buildPromptFromTemplates(form.opener_templates);
+
+  const updateTemplate = (index: number, field: "text" | "condition", value: string) => {
+    setForm(prev => ({
+      ...prev,
+      opener_templates: prev.opener_templates.map((t, i) => i === index ? { ...t, [field]: value } : t),
+    }));
+  };
+
+  const addTemplate = () => {
+    if (form.opener_templates.length >= 5) return;
+    setForm(prev => ({
+      ...prev,
+      opener_templates: [...prev.opener_templates, { text: "", condition: "", order: prev.opener_templates.length }],
+    }));
+  };
+
+  const removeTemplate = (index: number) => {
+    if (form.opener_templates.length <= 1) return;
+    setForm(prev => ({
+      ...prev,
+      opener_templates: prev.opener_templates.filter((_, i) => i !== index).map((t, i) => ({ ...t, order: i })),
+    }));
+  };
 
   return (
     <div className="h-[calc(100vh-5rem)] md:h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden scrollbar-hide pb-6">
@@ -247,14 +284,14 @@ const Settings = ({ userId }: { userId: string }) => {
           {!aiEditing && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">DM opener</span>
-                <span className="text-xs text-right max-w-[60%] truncate">{form.opener_option_a || "—"}</span>
+                <span className="text-xs text-muted-foreground">Opener templates</span>
+                <span className="text-xs">{form.opener_templates.length} template{form.opener_templates.length !== 1 ? "s" : ""}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Prompt</span>
                 {isPromptCustomised
                   ? <span className="text-[10px] rounded-full bg-primary/10 text-primary px-2 py-0.5 font-medium">Custom</span>
-                  : <span className="text-xs text-muted-foreground">Default</span>}
+                  : <span className="text-xs text-muted-foreground">Auto-generated</span>}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Groq API key</span>
@@ -269,24 +306,70 @@ const Settings = ({ userId }: { userId: string }) => {
           {aiEditing && (
             <div className="space-y-4 pt-1 border-t border-border">
 
-              {/* Default opener */}
-              <div className="space-y-1">
+              {/* Opener templates */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs text-muted-foreground">Your DM opener</label>
-                  <span className="text-[10px] text-muted-foreground/60">{form.opener_option_a.length}/200</span>
+                  <label className="text-xs text-muted-foreground">Opener templates</label>
+                  <span className="text-[10px] text-muted-foreground/60">{form.opener_templates.length}/5</span>
                 </div>
-                <textarea
-                  value={form.opener_option_a}
-                  onChange={e => setForm(prev => ({ ...prev, opener_option_a: e.target.value }))}
-                  maxLength={200}
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-                  placeholder="Are you taking on more clients atm?"
-                />
-                <p className="text-[10px] text-muted-foreground/60">Used for most contacts. If someone's bio mentions a business they own, the AI automatically uses "Still running [their business]?" instead.</p>
+
+                {form.opener_templates.map((template, index) => (
+                  <div key={index} className="rounded-md border border-border bg-background p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-medium text-muted-foreground">Option {index + 1}</span>
+                      {form.opener_templates.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTemplate(index)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] text-muted-foreground/60">Opener text</label>
+                        <span className="text-[10px] text-muted-foreground/60">{template.text.length}/200</span>
+                      </div>
+                      <textarea
+                        value={template.text}
+                        onChange={e => updateTemplate(index, "text", e.target.value)}
+                        maxLength={200}
+                        rows={2}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                        placeholder='e.g. "Are you taking on more clients atm?"'
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-muted-foreground/60">When to use</label>
+                      <input
+                        value={template.condition}
+                        onChange={e => updateTemplate(index, "condition", e.target.value)}
+                        maxLength={500}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        placeholder='e.g. "Use when bio mentions they own a business"'
+                      />
+                    </div>
+                  </div>
+                ))}
+
+                {form.opener_templates.length < 5 && (
+                  <button
+                    type="button"
+                    onClick={addTemplate}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full justify-center rounded-md border border-dashed border-border py-2"
+                  >
+                    <Plus className="h-3 w-3" /> Add template
+                  </button>
+                )}
+
+                <p className="text-[10px] text-muted-foreground/60">
+                  Use [BRACKETS] for values the AI should extract from the bio, e.g. "Still running [BUSINESS NAME]?"
+                </p>
               </div>
 
-              {/* Custom prompt */}
+              {/* AI Prompt — preview/edit */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -295,26 +378,54 @@ const Settings = ({ userId }: { userId: string }) => {
                       <span className="text-[10px] rounded-full bg-primary/10 text-primary px-2 py-0.5 font-medium">Custom</span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setForm(prev => ({ ...prev, custom_prompt: "" }))}
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <RotateCcw className="h-3 w-3" /> Reset
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {promptEditing && (
+                      <button
+                        type="button"
+                        onClick={() => { setPromptEditing(false); setForm(prev => ({ ...prev, custom_prompt: "" })); }}
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <RotateCcw className="h-3 w-3" /> Reset
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setPromptEditing(v => !v)}
+                      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {promptEditing ? <><ChevronUp className="h-3 w-3" /> Preview</> : <><Pencil className="h-3 w-3" /> Edit</>}
+                    </button>
+                  </div>
                 </div>
-                <textarea
-                  value={form.custom_prompt || DEFAULT_PROMPT_TEMPLATE}
-                  onChange={e => {
-                    const val = e.target.value;
-                    setForm(prev => ({ ...prev, custom_prompt: val === DEFAULT_PROMPT_TEMPLATE ? "" : val }));
-                  }}
-                  rows={12}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono resize-y focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-                <p className="text-[10px] text-muted-foreground/60">
-                  Must include <span className="font-mono">{"{{contacts}}"}</span>. Use <span className="font-mono">{"{{option_a}}"}</span> to reference your opener above.
-                </p>
+
+                {promptEditing ? (
+                  <>
+                    <textarea
+                      value={form.custom_prompt || autoPrompt}
+                      onChange={e => setForm(prev => ({ ...prev, custom_prompt: e.target.value }))}
+                      rows={12}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs font-mono resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                      Custom edits won't auto-update when you change templates above.
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Must include <span className="font-mono">{"{{contacts}}"}</span>.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <textarea
+                      value={autoPrompt}
+                      readOnly
+                      rows={10}
+                      className="w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-xs font-mono resize-none cursor-default opacity-70"
+                    />
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Auto-generated from your templates. Click Edit to customise.
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Groq API key */}
