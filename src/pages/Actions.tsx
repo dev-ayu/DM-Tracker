@@ -45,19 +45,19 @@ type FollowUpContact = {
 const getSkipDate = (d: Date, skipDays: number, workingDays: Set<number>): string => {
   let target = addDays(d, skipDays);
   for (let i = 0; i < 7; i++) {
-    if (workingDays.has(getDayIST(target))) return target.toISOString().slice(0, 10);
+    if (workingDays.has(getDayIST(target))) return new Date(target.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
     target = addDays(target, 1);
   }
-  return target.toISOString().slice(0, 10);
+  return new Date(target.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
 };
 
 const getPreviousWorkingDay = (d: Date, workingDays: Set<number>): string => {
   let target = subDays(d, 1);
   for (let i = 0; i < 7; i++) {
-    if (workingDays.has(getDayIST(target))) return target.toISOString().slice(0, 10);
+    if (workingDays.has(getDayIST(target))) return new Date(target.getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
     target = subDays(target, 1);
   }
-  return subDays(d, 1).toISOString().slice(0, 10);
+  return new Date(subDays(d, 1).getTime() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
 };
 
 const Actions = ({ userId }: { userId: string }) => {
@@ -76,7 +76,7 @@ const Actions = ({ userId }: { userId: string }) => {
   const scrollKey = "actions-scroll-pos";
 
   const now = new Date();
-  const today = todayIST();
+  const today = todayIST(); // Use UTC date for DB queries
   const workingDays = new Set((settings.working_days || "1,2,3,4,5").split(",").map(Number));
   const isWeekdayToday = workingDays.has(getDayIST(now));
 
@@ -134,24 +134,17 @@ const Actions = ({ userId }: { userId: string }) => {
       }
     }
 
-    // Purge ghost entries: delete any uncompleted DM queue entries (today + future) for contacts already DMed (any downstream status)
+    // Purge ghost entries: only clean up PAST (before today) uncompleted DM queue entries for contacts already at a downstream status.
+    // We deliberately do NOT delete today's entries — the user may be mid-session on another device.
     const uncompletedDmIds = dmData.filter(q => !q.completed).map(q => q.contact_id);
     if (uncompletedDmIds.length > 0) {
       const { data: ghostDmed } = await supabase
         .from("contacts").select("id").in("id", uncompletedDmIds).in("status", ["dmed", "initiated", "engaged", "calendly_sent", "booked", "flywheel"]);
       const ghostIds = (ghostDmed || []).map(c => c.id);
       if (ghostIds.length > 0) {
-        // Remove these ghost entries from today's queue
-        const ghostQueueIds = dmData.filter(q => !q.completed && ghostIds.includes(q.contact_id)).map(q => q.id);
-        if (ghostQueueIds.length > 0) {
-          await supabase.from("daily_queues").delete().in("id", ghostQueueIds);
-        }
-        // Also purge any future ghost entries for these contacts
-        await supabase.from("daily_queues").delete().eq("user_id", userId).eq("queue_type", "dm").eq("completed", false).gt("queue_date", today).in("contact_id", ghostIds);
-        // Remove from local state
-        const ghostSet = new Set(ghostIds);
-        const cleanedDms = dmData.filter(q => q.completed || !ghostSet.has(q.contact_id));
-        setDmQueue(cleanedDms);
+        // Only purge PAST stale entries — never touch today's active DM queue entries
+        await supabase.from("daily_queues").delete().eq("user_id", userId).eq("queue_type", "dm").eq("completed", false).lt("queue_date", today).in("contact_id", ghostIds);
+        // Note: today's entries are intentionally left alone
       }
     }
 
@@ -386,9 +379,7 @@ const Actions = ({ userId }: { userId: string }) => {
 
     const { data: unsentDms } = await supabase
       .from("daily_queues").select("contact_id, queue_date").eq("user_id", userId).eq("queue_type", "dm").eq("completed", false).lt("queue_date", today).order("queue_date", { ascending: true });
-    const prevWeekday = getPreviousWorkingDay(now, workingDays);
-    const { data: yesterdayFollowed } = await supabase
-      .from("daily_queues").select("contact_id").eq("user_id", userId).eq("queue_date", prevWeekday).eq("queue_type", "follow").eq("completed", true);
+    
     const { data: existingDms } = await supabase
       .from("daily_queues").select("contact_id").eq("user_id", userId).eq("queue_date", today).eq("queue_type", "dm");
 
@@ -411,15 +402,20 @@ const Actions = ({ userId }: { userId: string }) => {
     }
     const carryoverContactIds = rawCarryoverIds.filter(id => !carryoverExcludeIds.has(id));
 
-    // Filter out contacts no longer in "followed" status (already DMed, advanced, or deleted)
-    const yesterdayIds = (yesterdayFollowed || []).map(f => f.contact_id);
-    let validFollowedIds = new Set<string>();
-    if (yesterdayIds.length > 0) {
-      const { data: stillFollowed } = await supabase
-        .from("contacts").select("id").in("id", yesterdayIds).eq("status", "followed");
-      validFollowedIds = new Set((stillFollowed || []).map(c => c.id));
-    }
-    const newFollowContactIds = yesterdayIds.filter(id => validFollowedIds.has(id) && !existingDmIds.has(id) && !carryoverContactIds.includes(id));
+    // Fetch eligible previously followed contacts for DMs
+    const { data: eligibleFollows } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("status", "followed")
+      .lt("followed_at", todayISTMidnight())
+      .is("dmed_at", null)
+      .or("dm_skip_count.eq.0,dm_skip_count.is.null")
+      .order("followed_at", { ascending: true })
+      .limit(100);
+
+    const eligibleIds = (eligibleFollows || []).map(c => c.id);
+    const newFollowContactIds = eligibleIds.filter(id => !existingDmIds.has(id) && !carryoverContactIds.includes(id));
     // Fresh 30-cap is independent of carryovers — skipped DMs don't steal fresh slots
     const freshNewFollows = newFollowContactIds.slice(0, DM_LIMIT - freshDmCount);
     const allNewDmContactIds = [...carryoverContactIds, ...freshNewFollows];
@@ -583,7 +579,7 @@ const Actions = ({ userId }: { userId: string }) => {
           <p className="text-sm text-muted-foreground">{format(now, "EEEE, MMM d")}</p>
         </div>
         <div className="flex gap-2">
-          {followQueue.length === 0 && (
+          {(followQueue.length === 0 || dmQueue.length === 0) && (
             <Button variant="outline" size="sm" onClick={autoQueue} disabled={autoQueueLoading}>
               {autoQueueLoading ? "Loading..." : "Load Queue"}
             </Button>
