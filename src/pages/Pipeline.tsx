@@ -218,10 +218,10 @@ const Pipeline = ({ userId }: { userId: string }) => {
     setSelectedContact(prev => prev ? { ...prev, current_follow_up: newFollowUp, last_follow_up_at: nowIso } : null);
     setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, current_follow_up: newFollowUp, last_follow_up_at: nowIso } : c));
     await supabase.from("contacts").update({ current_follow_up: newFollowUp, last_follow_up_at: nowIso }).eq("id", selectedContact.id);
-<<<<<<< HEAD
-=======
     void syncSheet({ userId, contactId: selectedContact.id, event: "follow_up_sent", followUp: fu, actionDate: nowIso });
-    void syncSheet({ userId, contactId: selectedContact.id, event: "follow_up_sent", followUp: fu, actionDate: nowIso });
+    toast.success(newFollowUp ? `Advanced to ${newFollowUp}` : `All ${letter} follow-ups complete`);
+  };
+
   const getNextStage = (contact: PipelineContact) => {
     if (contact.status === "dmed") return { label: "Initiated", status: "initiated" };
     if (contact.status === "initiated") return { label: "Engaged", status: "engaged" };
