@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { todayIST, futureDateIST } from "@/lib/time";
 import { useNavigate } from "react-router-dom";
 import { usePullRefresh } from "@/hooks/use-pull-refresh";
+import { syncSheet } from "@/lib/sheets-sync";
 
 /* ─── Types ─── */
 type FollowUpContact = {
@@ -121,24 +122,21 @@ const Dashboard = ({ userId }: { userId: string }) => {
     removeContactOptimistic(contact.id);
 
     const nowIso = new Date().toISOString();
-    let updateError: any = null;
-    if ((letter === "A" && num >= maxA) || (letter === "B" && num >= maxB) || (letter === "C" && num >= maxC)) {
-      const reason = letter === "A" ? "no_reply_1a" : letter === "B" ? "no_reply_8b" : "no_reply_8c";
-      const { error } = await supabase.from("contacts").update({
-        status: "flywheel", flywheel_reason: reason, negative_reply: false,
-        requeue_after: futureDateIST(settings.flywheel_days), current_follow_up: null, last_follow_up_at: null,
-      }).eq("id", contact.id);
-      updateError = error;
-    } else {
-      const nextFu = `${num + 1}${letter}`;
-      const { error } = await supabase.from("contacts").update({ current_follow_up: nextFu, last_follow_up_at: nowIso }).eq("id", contact.id);
-      updateError = error;
-    }
-    if (updateError) {
-      toast.error(`Update failed: ${updateError.message}`);
+    const isMax =
+      (letter === "A" && num >= maxA) ||
+      (letter === "B" && num >= maxB) ||
+      (letter === "C" && num >= maxC);
+    const nextFu = isMax ? fu : `${num + 1}${letter}`;
+    const { error } = await supabase
+      .from("contacts")
+      .update({ current_follow_up: nextFu, last_follow_up_at: nowIso })
+      .eq("id", contact.id);
+    if (error) {
+      toast.error(`Update failed: ${error.message}`);
       setFollowUps(prev => [...prev, contact]);
       return;
     }
+    void syncSheet({ userId, contactId: contact.id, event: "follow_up_sent", followUp: fu, actionDate: nowIso });
     toast.success(`Follow-up ${fu} sent`);
     fetchData(true);
   };
@@ -166,6 +164,8 @@ const Dashboard = ({ userId }: { userId: string }) => {
       setFollowUps(prev => [...prev, contact]);
       return;
     }
+    const stageEvent = letter === "A" ? "engaged" : letter === "B" ? "calendly_sent" : "booked";
+    void syncSheet({ userId, contactId: contact.id, event: stageEvent, actionDate: nowIso });
     toast.success(successMsg);
     fetchData(true);
   };

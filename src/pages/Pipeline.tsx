@@ -7,6 +7,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { futureDateIST } from "@/lib/time";
+import { syncSheet } from "@/lib/sheets-sync";
 import { format, differenceInDays } from "date-fns";
 
 type PipelineContact = {
@@ -146,6 +147,9 @@ const Pipeline = ({ userId }: { userId: string }) => {
     await supabase.from("contacts").update(updates).eq("id", contactId);
     // Clean up any lingering uncompleted DM queue entries for this contact
     await supabase.from("daily_queues").delete().eq("contact_id", contactId).eq("queue_type", "dm").eq("completed", false);
+    if (newStatus === "initiated" || newStatus === "engaged" || newStatus === "calendly_sent" || newStatus === "booked") {
+      void syncSheet({ userId, contactId, event: newStatus, actionDate: nowIso });
+    }
     toast.success(`Moved to ${newStatus.replace("_", " ")}`);
     fetchContacts(true);
   };
@@ -159,6 +163,7 @@ const Pipeline = ({ userId }: { userId: string }) => {
     if (newVal) updates.media_seen_at = new Date().toISOString();
     else updates.media_seen_at = null;
     await supabase.from("contacts").update(updates).eq("id", contactId);
+    void syncSheet({ userId, contactId, event: "media_seen" });
     toast.success(newVal ? "Marked as media seen" : "Media seen removed");
   };
 
@@ -213,9 +218,10 @@ const Pipeline = ({ userId }: { userId: string }) => {
     setSelectedContact(prev => prev ? { ...prev, current_follow_up: newFollowUp, last_follow_up_at: nowIso } : null);
     setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, current_follow_up: newFollowUp, last_follow_up_at: nowIso } : c));
     await supabase.from("contacts").update({ current_follow_up: newFollowUp, last_follow_up_at: nowIso }).eq("id", selectedContact.id);
-    toast.success(newFollowUp ? `Advanced to ${newFollowUp}` : `All ${letter} follow-ups complete`);
-  };
-
+<<<<<<< HEAD
+=======
+    void syncSheet({ userId, contactId: selectedContact.id, event: "follow_up_sent", followUp: fu, actionDate: nowIso });
+    void syncSheet({ userId, contactId: selectedContact.id, event: "follow_up_sent", followUp: fu, actionDate: nowIso });
   const getNextStage = (contact: PipelineContact) => {
     if (contact.status === "dmed") return { label: "Initiated", status: "initiated" };
     if (contact.status === "initiated") return { label: "Engaged", status: "engaged" };

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { syncSheet } from "@/lib/sheets-sync";
 import { ExternalLink, Copy, Zap, X, ThumbsDown, Clock, ChevronRight, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { format, subDays, addDays } from "date-fns";
@@ -205,6 +206,7 @@ const Actions = ({ userId }: { userId: string }) => {
           if (contactErr) toast.error(`Contact update failed: ${contactErr.message}`);
         }
         // If contact has progressed past "followed", do NOT change their status
+        void syncSheet({ userId, contactId, event: "dm_sent", actionDate: nowIso });
       }
     } else {
       // Unchecking: only revert if contact hasn't progressed past the expected stage
@@ -481,26 +483,26 @@ const Actions = ({ userId }: { userId: string }) => {
     const maxB = settings.max_followups_b;
     const maxC = settings.max_followups_c;
 
-    if (letter === "A" && num >= maxA) {
-      await sendToFlywheel(contact.id, "no_reply_1a");
-    } else if (letter === "B" && num >= maxB) {
-      await sendToFlywheel(contact.id, "no_reply_8b");
-    } else if (letter === "C" && num >= maxC) {
-      await sendToFlywheel(contact.id, "no_reply_8c");
-    } else {
-      const nextNum = num + 1;
-      const nextFu = `${nextNum}${letter}`;
-      const { error } = await supabase.from("contacts").update({
-        current_follow_up: nextFu,
-        last_follow_up_at: nowIso,
-      }).eq("id", contact.id);
-      if (error) {
-        toast.error(`Follow-up update failed: ${error.message}`);
-        setFollowUps(prev => [...prev, contact]);
-        return;
-      }
+    const isMax =
+      (letter === "A" && num >= maxA) ||
+      (letter === "B" && num >= maxB) ||
+      (letter === "C" && num >= maxC);
+    
+    // If we've reached max limit, just update the date but keep the current step
+    const nextFu = isMax ? fu : `${num + 1}${letter}`;
+    
+    const { error } = await supabase.from("contacts").update({
+      current_follow_up: nextFu,
+      last_follow_up_at: nowIso,
+    }).eq("id", contact.id);
+    
+    if (error) {
+      toast.error(`Follow-up update failed: ${error.message}`);
+      setFollowUps(prev => [...prev, contact]);
+      return;
     }
 
+    void syncSheet({ userId, contactId: contact.id, event: "follow_up_sent", followUp: fu, actionDate: nowIso });
     toast.success(`Follow-up ${fu} sent`);
     fetchData();
   };
@@ -529,21 +531,9 @@ const Actions = ({ userId }: { userId: string }) => {
       setFollowUps(prev => [...prev, contact]);
       return;
     }
+    const stageEvent = letter === "A" ? "engaged" : letter === "B" ? "calendly_sent" : "booked";
+    void syncSheet({ userId, contactId: contact.id, event: stageEvent, actionDate: nowIso });
     toast.success(successMsg);
-    fetchData();
-  };
-
-  const sendToFlywheel = async (contactId: string, reason: string) => {
-    const { error } = await supabase.from("contacts").update({
-      status: "flywheel",
-      flywheel_reason: reason,
-      negative_reply: reason === "negative",
-      requeue_after: futureDateIST(settings.flywheel_days),
-      current_follow_up: null,
-      last_follow_up_at: null,
-    }).eq("id", contactId);
-    if (error) { toast.error(`Flywheel update failed: ${error.message}`); return; }
-    toast.success(`Sent to flywheel (${settings.flywheel_days} days)`);
     fetchData();
   };
 
