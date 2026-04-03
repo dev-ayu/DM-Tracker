@@ -87,13 +87,22 @@ const Pipeline = ({ userId }: { userId: string }) => {
   const ghostContactsForStage = (stageKey: string) => {
     const tsField = stageTimestampField(stageKey);
     if (!tsField) return [];
+    
+    const stageIndex = STAGES.findIndex(s => s.key === stageKey);
     const q = (stageSearch[stageKey] || "").toLowerCase().trim();
+    
     return contacts
-      .filter(c =>
-        c.status !== stageKey &&
-        c[tsField] != null &&
-        (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q))
-      )
+      .filter(c => {
+        const currentStatusIndex = STAGES.findIndex(s => s.key === c.status);
+        const isFlywheel = c.status === "flywheel";
+        
+        return (
+          (currentStatusIndex > stageIndex || isFlywheel) && 
+          c[tsField] != null &&
+          c.status !== stageKey &&
+          (!q || c.full_name.toLowerCase().includes(q) || (c.username || "").toLowerCase().includes(q))
+        );
+      })
       .sort((a, b) => {
         const aTs = a[tsField] as string | null;
         const bTs = b[tsField] as string | null;
